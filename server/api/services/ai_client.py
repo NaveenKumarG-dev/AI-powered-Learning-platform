@@ -27,6 +27,9 @@ import requests
 from django.conf import settings
 from langchain_core.messages import HumanMessage, SystemMessage
 from PIL import Image
+import json
+import base64
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,10 @@ def _langchain_generate(
     model: Optional[str] = None,
 ) -> str:
     """Send a chat request using the configured LangChain backend."""
+    # If Bedrock text is enabled, use the Bedrock helper directly
+    if _use_bedrock_text():
+        return _bedrock_generate_text(prompt, system_prompt=system_prompt, json_mode=json_mode, model=model)
+
     llm = get_langchain_llm(temperature=0.7, json_mode=json_mode, model_override=model)
 
     messages = []
@@ -82,6 +89,156 @@ def _langchain_generate(
         
     logger.info("AI Client [%s] ← Response length=%d", backend_name, len(content))
     return content
+
+
+# ── Amazon Bedrock helpers ───────────────────────────────────────────────────
+
+def _use_bedrock_text() -> bool:
+    return getattr(settings, 'USE_BEDROCK_TEXT', False)
+
+
+def _use_bedrock_image() -> bool:
+    return getattr(settings, 'USE_BEDROCK_IMAGE', False)
+
+
+def _bedrock_generate_text(prompt: str, system_prompt: Optional[str] = None, json_mode: bool = False, model: Optional[str] = None) -> str:
+    """Generate text using Amazon Bedrock via `bedrock-runtime`.
+
+    This uses the `invoke_model` API. The exact response schema depends on the
+    model; we attempt to decode JSON output or fall back to raw text.
+    """
+    try:
+        import boto3
+    except Exception as exc:
+        logger.error("AI Client [BEDROCK] boto3 is not installed: %s", exc)
+        raise RuntimeError("boto3 is required for Bedrock support. Install with: pip install boto3")
+
+    model_id = model or getattr(settings, 'BEDROCK_LLM_MODEL', 'amazon/nova-lite')
+    region = getattr(settings, 'AWS_REGION', None)
+
+    input_text = prompt
+    if system_prompt:
+        input_text = f"{system_prompt}\n\n{prompt}"
+    if json_mode:
+        input_text = input_text + "\n\nReturn only valid JSON. Do not add markdown, commentary, or code fences."
+
+    client = boto3.client('bedrock-runtime', region_name=region) if region else boto3.client('bedrock-runtime')
+
+    payload = json.dumps({"input": input_text}).encode('utf-8')
+    logger.info("AI Client [BEDROCK] Invoking model=%s", model_id)
+    resp = client.invoke_model(modelId=model_id, contentType='application/json', accept='application/json', body=payload)
+
+    body = resp.get('body')
+    if hasattr(body, 'read'):
+        body_bytes = body.read()
+    else:
+        body_bytes = body
+
+    try:
+        decoded = body_bytes.decode('utf-8')
+    except Exception:
+        decoded = str(body_bytes)
+
+    # Try to parse JSON; if that fails, return raw text
+    try:
+        parsed = json.loads(decoded)
+        # Many Bedrock models return a dict with outputs; try common keys
+        if isinstance(parsed, dict):
+            if 'output' in parsed:
+                return parsed['output']
+            if 'outputs' in parsed and parsed['outputs']:
+                first = parsed['outputs'][0]
+                if isinstance(first, dict) and 'body' in first:
+                    return first['body']
+                return str(first)
+        return json.dumps(parsed)
+    except Exception:
+        return decoded
+
+
+def _bedrock_generate_image(prompt_text: str, output_path: Optional[str] = None) -> Optional[Image.Image]:
+    """Generate an image using an image model hosted in Bedrock (e.g., Nova Canvas).
+
+    The function attempts to decode a base64 image from the model's JSON response
+    and return a PIL.Image. If the model returns raw binary, we attempt to open
+    it directly.
+    """
+    try:
+        import boto3
+    except Exception as exc:
+        logger.error("AI Client [BEDROCK] boto3 is not installed: %s", exc)
+        raise RuntimeError("boto3 is required for Bedrock image support. Install with: pip install boto3")
+
+    model_id = getattr(settings, 'BEDROCK_IMAGE_MODEL', 'amazon/nova-canvas')
+    region = getattr(settings, 'AWS_REGION', None)
+
+    client = boto3.client('bedrock-runtime', region_name=region) if region else boto3.client('bedrock-runtime')
+    payload = json.dumps({"input": prompt_text}).encode('utf-8')
+    logger.info("AI Client [BEDROCK] Invoking image model=%s", model_id)
+    resp = client.invoke_model(modelId=model_id, contentType='application/json', accept='application/json', body=payload)
+
+    body = resp.get('body')
+    if hasattr(body, 'read'):
+        body_bytes = body.read()
+    else:
+        body_bytes = body
+
+    try:
+        decoded = body_bytes.decode('utf-8')
+    except Exception:
+        decoded = None
+
+    image_bytes = None
+    if decoded:
+        # Try to parse JSON and extract base64 image data
+        try:
+            parsed = json.loads(decoded)
+            # common keys to check
+            for key in ('image', 'body', 'b64_json', 'data'):
+                if key in parsed:
+                    val = parsed[key]
+                    if isinstance(val, str):
+                        # assume base64
+                        try:
+                            image_bytes = base64.b64decode(val)
+                            break
+                        except Exception:
+                            pass
+                    # if it's nested, try first element
+                    if isinstance(val, list) and val and isinstance(val[0], str):
+                        try:
+                            image_bytes = base64.b64decode(val[0])
+                            break
+                        except Exception:
+                            pass
+            # check outputs array
+            if image_bytes is None and isinstance(parsed, dict) and 'outputs' in parsed:
+                outs = parsed['outputs']
+                if outs and isinstance(outs[0], dict) and 'body' in outs[0]:
+                    try:
+                        image_bytes = base64.b64decode(outs[0]['body'])
+                    except Exception:
+                        pass
+        except Exception:
+            image_bytes = None
+
+    # If we didn't get JSON-with-base64, treat body_bytes as raw image data
+    if image_bytes is None:
+        if isinstance(body_bytes, (bytes, bytearray)):
+            image_bytes = body_bytes
+
+    if image_bytes is None:
+        logger.error("AI Client [BEDROCK] No image data returned by model")
+        return None
+
+    try:
+        img = Image.open(BytesIO(image_bytes)).convert('RGB')
+        if output_path:
+            img.save(output_path)
+        return img
+    except Exception:
+        logger.exception("AI Client [BEDROCK] Failed to decode image bytes")
+        return None
 
 
 # ── Stable Diffusion image helper ─────────────────────────────────────────────
@@ -202,6 +359,9 @@ def generate_image(prompt_text: str, output_path: Optional[str] = None) -> Optio
     Returns:
         PIL.Image object, or None on failure.
     """
+    # Priority: Bedrock (if enabled) -> OpenRouter -> local Stable Diffusion
+    if _use_bedrock_image():
+        return _bedrock_generate_image(prompt_text, output_path=output_path)
     if _use_openrouter_image():
         return _openrouter_generate_image(prompt_text, output_path=output_path)
     return _sd_generate(prompt_text, output_path=output_path)

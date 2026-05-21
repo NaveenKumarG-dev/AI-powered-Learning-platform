@@ -1,69 +1,40 @@
 # AI-powered-Learning-platform
 
-## Run With Docker
+## Run Locally (no Docker)
 
-### Prerequisites
+This project can be run without Docker. Start the frontend using `npm` (Vite) and the backend with plain Python/Django.
 
-- Docker Desktop installed and running
-- Ports `5173` (frontend), `8000` (backend), and `3307` (MySQL) available
+Prerequisites
 
-### 1) Build and start all services
+- Node >= 18 and npm
+- Python >= 3.10
+- MySQL (or update `server/settings.py` to use SQLite for local dev)
 
-From the repository root:
-
-```bash
-docker compose up --build
-```
-Services started:
-
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000/api`
-- MySQL: `localhost:3307`
-
-### 2) Start in detached mode
+1) Install backend dependencies and prepare environment
 
 ```bash
-docker compose up -d --build
+python -m venv .venv
+.venv\Scripts\activate    # Windows
+pip install -r requirements.txt
+cp server/.env.template server/.env
+# Edit server/.env to set DB and AWS/Bedrock credentials
+python server/manage.py migrate
+python server/manage.py createsuperuser
+python server/manage.py runserver 8000
 ```
 
-### 3) Stop everything
+2) Start frontend (Vite)
 
 ```bash
-docker compose down
+cd frontend
+npm install
+npm run dev
 ```
 
-### 4) Stop and remove DB volume (full reset)
+Frontend: `http://localhost:5173`
+Backend API: `http://localhost:8000/api`
 
-```bash
-docker compose down -v
-```
+Notes
 
-### 5) View logs
-
-```bash
-docker compose logs -f
-```
-
-Or a single service:
-
-```bash
-docker compose logs -f server
-docker compose logs -f frontend
-docker compose logs -f db
-```
-
-### 6) Run backend commands inside container
-
-```bash
-docker compose exec server python manage.py createsuperuser
-docker compose exec server python manage.py shell
-```
-
-## Notes
-- The backend uses values from `server/.env`, with Docker overrides for DB host/credentials.
-- For Docker Compose, MySQL runs in the `db` service and Django connects using `DB_HOST=db`.
-- If you update Python or Node dependencies, rebuild images:
-
-```bash
-docker compose up --build
-```
+- The backend reads AI config from `server/.env` — set `USE_BEDROCK_TEXT`/`USE_BEDROCK_IMAGE` and AWS credentials to enable Amazon Bedrock (defaults `amazon/nova-lite` and `amazon/nova-canvas`).
+- Ollama support is preserved; set `OLLAMA_API_URL` / `OLLAMA_MODEL` in `server/.env` to use local Ollama for development.
