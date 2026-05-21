@@ -1,20 +1,9 @@
---extra-index-url https://download.pytorch.org/whl/cu121
-torch==2.5.1
-torchvision==0.20.1
-torchaudio==2.5.1
-
-diffusers==0.32.0
-transformers==4.46.0
-accelerate==1.2.0
-safetensors==0.4.5
-huggingface-hub==0.26.2
-peft==0.13.2
-
-# Video generation dependencies
+# Core runtime dependencies for the Vercel backend deployment.
+# Heavy local media/ML packages are intentionally excluded because they exceed
+# Vercel's Lambda storage limit and are only needed for the local Docker stack.
 pillow
 edge-tts
 requests
-playwright  # Required for HTML slide rendering
 
 # PostgreSQL driver
 psycopg2-binary
@@ -28,9 +17,7 @@ django-cors-headers
 djangorestframework-simplejwt
 django-filter
 
-# Async task queue (optional - currently using threading)
-# celery
-# redis
+# Async task queue is disabled in the Vercel build.
 
 # LangChain for AI course planning
 langchain>=0.3.0

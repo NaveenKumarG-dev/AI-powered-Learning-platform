@@ -1,0 +1,13 @@
+frontend/node_modules
+frontend/dist
+frontend/.env*
+server/__pycache__
+server/media
+notebooks/output
+notebooks/output_new
+notebooks/output_v3
+*.pyc
+*.pyo
+*.pyd
+.git
+.github

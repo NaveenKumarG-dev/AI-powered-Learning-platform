@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import urllib.parse
 from pathlib import Path
 from datetime import timedelta
 
@@ -34,7 +35,11 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-default-key-please-ch
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = []
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', '').strip()
+if allowed_hosts_env:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(',') if host.strip()]
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '.vercel.app']
 
 
 # Application definition
@@ -89,16 +94,30 @@ WSGI_APPLICATION = 'server.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
-        'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
-        'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
-        'HOST': os.environ.get('SUPABASE_DB_HOST', 'db.qujfeuczrpnwhkxrufij.supabase.co'),
-        'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
+database_url = os.environ.get('DATABASE_URL', '').strip()
+if database_url:
+    parsed_url = urllib.parse.urlparse(database_url)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': parsed_url.path.lstrip('/'),
+            'USER': parsed_url.username or '',
+            'PASSWORD': parsed_url.password or '',
+            'HOST': parsed_url.hostname or '',
+            'PORT': parsed_url.port or '5432',
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
+            'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
+            'HOST': os.environ.get('SUPABASE_DB_HOST', 'db.qujfeuczrpnwhkxrufij.supabase.co'),
+            'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
+        }
+    }
 
 
 # Password validation
@@ -153,7 +172,12 @@ MEDIA_ROOT = BASE_DIR / 'media'
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
 ]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r'^https://.*\.vercel\.app$',
+]
 CORS_ALLOW_CREDENTIALS = True
+
+ASGI_APPLICATION = 'server.asgi.application'
 
 # Django REST Framework
 REST_FRAMEWORK = {

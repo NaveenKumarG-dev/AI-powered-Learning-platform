@@ -1,10 +1,26 @@
 import logging
 
-from celery import shared_task
 from django.core.files import File
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+
+try:
+    from celery import shared_task
+except Exception:
+    def shared_task(*decorator_args, **decorator_kwargs):
+        def decorator(function):
+            def delay(*args, **kwargs):
+                return function(*args, **kwargs)
+
+            function.delay = delay
+            return function
+
+        if decorator_args and callable(decorator_args[0]) and not decorator_kwargs:
+            return decorator(decorator_args[0])
+
+        return decorator
 
 
 @shared_task(bind=True, max_retries=0)

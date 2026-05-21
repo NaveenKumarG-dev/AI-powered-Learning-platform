@@ -216,3 +216,5 @@ video_plan.json
 
 /docs
 /documentations
+.vercel
+.env*.local
