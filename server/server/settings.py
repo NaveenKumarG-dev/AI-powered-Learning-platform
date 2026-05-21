@@ -92,11 +92,11 @@ WSGI_APPLICATION = 'server.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('SUPABASE_DB_NAME', os.environ.get('DB_NAME', 'ai_powered_learning')),
-        'USER': os.environ.get('SUPABASE_DB_USER', os.environ.get('DB_USER', 'postgres')),
-        'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', os.environ.get('DB_PASSWORD', '')),
-        'HOST': os.environ.get('SUPABASE_DB_HOST', os.environ.get('DB_HOST', 'localhost')),
-        'PORT': os.environ.get('SUPABASE_DB_PORT', os.environ.get('DB_PORT', '5432')),
+        'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
+        'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
+        'HOST': os.environ.get('SUPABASE_DB_HOST', 'db.qujfeuczrpnwhkxrufij.supabase.co'),
+        'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
     }
 }
 
