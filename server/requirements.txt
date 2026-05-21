@@ -16,8 +16,11 @@ edge-tts
 requests
 playwright  # Required for HTML slide rendering
 
-# MySQL connector
-mysqlclient
+# PostgreSQL driver
+psycopg2-binary
+
+# Supabase Python SDK (used for server-side helpers)
+supabase
 
 # Django ecosystem
 djangorestframework

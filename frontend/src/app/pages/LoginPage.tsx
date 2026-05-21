@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { Eye, EyeOff, BookOpen, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { supabase } from '../../lib/supabaseClient';
 
 /**
  * Parse Django REST Framework field-level validation errors into readable strings.
@@ -157,6 +158,28 @@ export default function LoginPage() {
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
+
+          {/* OR separator and Google button */}
+          <div className="mt-4">
+            <div className="flex items-center gap-3 my-4">
+              <div className="flex-1 h-px bg-neutral-200" />
+              <div className="text-sm text-neutral-500">OR</div>
+              <div className="flex-1 h-px bg-neutral-200" />
+            </div>
+
+            <button
+              onClick={async () => {
+                // Redirect to Supabase Google OAuth
+                const redirectTo = `${window.location.origin}/oauth-callback`;
+                // @ts-ignore
+                await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+              }}
+              className="w-full border border-neutral-200 py-3 rounded-xl flex items-center justify-center gap-3 hover:bg-neutral-50 transition"
+            >
+              <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
+              <span className="text-sm">Continue with Google</span>
+            </button>
+          </div>
 
           {/* Create Account Link */}
           <div className="mt-6 text-center">

@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { supabase } from '../lib/supabaseClient';
 import {
   User,
   LearningProfile,
@@ -36,10 +37,20 @@ const api: AxiosInstance = axios.create({
 
 // Request interceptor - add auth token
 api.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('access_token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config: InternalAxiosRequestConfig) => {
+    try {
+      // Try to read active Supabase session
+      const sessionResp: any = await supabase.auth.getSession();
+      const token = sessionResp?.data?.session?.access_token || localStorage.getItem('access_token');
+      if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (e) {
+      // fallback to localStorage token
+      const token = localStorage.getItem('access_token');
+      if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -53,37 +64,13 @@ api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-
-    // If error is 401 and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        const refreshToken = localStorage.getItem('refresh_token');
-        if (refreshToken) {
-          const response = await axios.post(`${api.defaults.baseURL}/auth/token/refresh/`, {
-            refresh: refreshToken,
-          });
-
-          const { access } = response.data;
-          localStorage.setItem('access_token', access);
-
-          // Retry original request with new token
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${access}`;
-          }
-          return api(originalRequest);
-        }
-      } catch (refreshError) {
-        // Refresh failed - clear tokens and redirect to login
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-        return Promise.reject(refreshError);
-      }
+      // Clear local auth state and redirect to login
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
     }
-
     return Promise.reject(error);
   }
 );

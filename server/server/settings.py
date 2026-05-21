@@ -91,12 +91,12 @@ WSGI_APPLICATION = 'server.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'AI-Powered-Learning-Platform'),
-        'USER': os.environ.get('DB_USER', 'root'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'zoro@1324'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '3306'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('SUPABASE_DB_NAME', os.environ.get('DB_NAME', 'ai_powered_learning')),
+        'USER': os.environ.get('SUPABASE_DB_USER', os.environ.get('DB_USER', 'postgres')),
+        'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', os.environ.get('DB_PASSWORD', '')),
+        'HOST': os.environ.get('SUPABASE_DB_HOST', os.environ.get('DB_HOST', 'localhost')),
+        'PORT': os.environ.get('SUPABASE_DB_PORT', os.environ.get('DB_PORT', '5432')),
     }
 }
 
@@ -158,7 +158,7 @@ CORS_ALLOW_CREDENTIALS = True
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'api.auth_supabase.SupabaseAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',

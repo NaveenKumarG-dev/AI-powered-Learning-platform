@@ -19,6 +19,7 @@ import CodingAssessmentPage from './pages/CodingAssessmentPage';
 import PodcastPage from './pages/PodcastPage';
 import CourseDetailsPage from './pages/CourseDetailsPage';
 import { CourseLayout } from './components/CourseLayout';
+import OAuthCallback from './pages/OAuthCallback';
 
 // Note: Protected routes are handled by checking localStorage in each component
 // Alternatively, use a layout wrapper with auth checking
@@ -31,6 +32,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     Component: LoginPage,
+  },
+  {
+    path: '/oauth-callback',
+    Component: OAuthCallback,
   },
   {
     path: '/signup',
