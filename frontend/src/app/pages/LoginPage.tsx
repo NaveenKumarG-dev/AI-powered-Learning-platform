@@ -1,8 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { Eye, EyeOff, BookOpen, AlertCircle } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import { useAuth } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabaseClient';
+
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+
+const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 /**
  * Parse Django REST Framework field-level validation errors into readable strings.

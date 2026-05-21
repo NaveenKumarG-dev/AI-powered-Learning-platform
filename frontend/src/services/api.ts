@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { supabase } from '../lib/supabaseClient';
+import { createClient } from '@supabase/supabase-js';
 import {
   User,
   LearningProfile,
@@ -26,6 +26,11 @@ import {
   CodeSubmission,
   CodeExecutionTask,
 } from '../types/api';
+
+const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
+const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
+
+const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
 
 // Create axios instance
 const api: AxiosInstance = axios.create({
