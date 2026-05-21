@@ -228,26 +228,19 @@ CELERY_RESULT_SERIALIZER = 'json'
 # AI Backend Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Set IS_PRODUCTION=True in your .env (or shell env) to use OpenRouter API.
-# Defaults to False so local development uses OLLAMA + Stable Diffusion.
-IS_PRODUCTION = os.environ.get('IS_PRODUCTION', 'False').strip().lower() in ('1', 'true', 'yes')
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ('1', 'true', 'yes', 'on')
 
-# Fine-grained overrides — USE_OPENROUTER_TEXT / USE_OPENROUTER_IMAGE take precedence
-# over IS_PRODUCTION so you can mix backends (e.g. OpenRouter text + SD images).
-# Leave them unset (or empty) to inherit from IS_PRODUCTION.
-_use_openrouter_text_raw = os.environ.get('USE_OPENROUTER_TEXT', '').strip().lower()
-_use_openrouter_image_raw = os.environ.get('USE_OPENROUTER_IMAGE', '').strip().lower()
 
-USE_OPENROUTER_TEXT = (
-    _use_openrouter_text_raw in ('1', 'true', 'yes')
-    if _use_openrouter_text_raw
-    else IS_PRODUCTION
-)
-USE_OPENROUTER_IMAGE = (
-    _use_openrouter_image_raw in ('1', 'true', 'yes')
-    if _use_openrouter_image_raw
-    else IS_PRODUCTION
-)
+# Bedrock is the default managed provider for production text/image generation.
+USE_BEDROCK_TEXT = _env_bool('USE_BEDROCK_TEXT', True)
+USE_BEDROCK_IMAGE = _env_bool('USE_BEDROCK_IMAGE', True)
+
+# Backward-compatible flag used by some service logs.
+IS_PRODUCTION = USE_BEDROCK_TEXT or USE_BEDROCK_IMAGE
 
 # --- OLLAMA (development) ---
 OLLAMA_API_URL = os.environ.get('OLLAMA_API_URL', 'http://localhost:11434/api/generate')
@@ -256,7 +249,7 @@ OLLAMA_MODEL = os.environ.get('OLLAMA_MODEL', 'llama3:8b')
 CODING_MODEL = os.environ.get('CODING_MODEL', 'qwen2.5-coder:7b')
 OLLAMA_TIMEOUT = int(os.environ.get('OLLAMA_TIMEOUT', '600'))  # seconds
 
-# --- OpenRouter (production) ---
-OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
-OPENROUTER_BASE_URL = os.environ.get('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
-OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL', 'openai/gpt-3.5-turbo')  # text / chat
+# --- Amazon Bedrock (production) ---
+BEDROCK_LLM_MODEL = os.environ.get('BEDROCK_LLM_MODEL', 'amazon.nova-lite-v1:0')
+BEDROCK_IMAGE_MODEL = os.environ.get('BEDROCK_IMAGE_MODEL', 'amazon.nova-canvas-v1:0')
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')

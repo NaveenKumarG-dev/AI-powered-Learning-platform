@@ -3,8 +3,9 @@ Unified AI Client
 =================
 This module is the single source of truth for all AI calls in the server.
 
-IS_PRODUCTION=False  → OLLAMA (text/chat)  + Stable Diffusion (images)
-IS_PRODUCTION=True   → OpenRouter API via LangChain (text/chat)
+USE_BEDROCK_TEXT=True   → Amazon Bedrock Nova Lite (text/chat)
+USE_BEDROCK_IMAGE=True  → Amazon Bedrock Nova Canvas (images)
+Otherwise              → Ollama (text/chat) + Stable Diffusion (images)
 
 Usage
 -----
@@ -23,7 +24,6 @@ Usage
 import logging
 from typing import Optional
 
-import requests
 from django.conf import settings
 from langchain_core.messages import HumanMessage, SystemMessage
 from PIL import Image
@@ -38,61 +38,6 @@ logger = logging.getLogger(__name__)
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _use_openrouter_text() -> bool:
-    """Return True when text / chat generation should use OpenRouter."""
-    return getattr(settings, 'USE_OPENROUTER_TEXT', getattr(settings, 'IS_PRODUCTION', False))
-
-
-def _use_openrouter_image() -> bool:
-    """Return True when image generation should use OpenRouter backend."""
-    return getattr(settings, 'USE_OPENROUTER_IMAGE', getattr(settings, 'IS_PRODUCTION', False))
-
-
-# ── Unified Text Helper ───────────────────────────────────────────────────────
-
-def _langchain_generate(
-    prompt: str,
-    system_prompt: Optional[str] = None,
-    json_mode: bool = False,
-    model: Optional[str] = None,
-) -> str:
-    """Send a chat request using the configured LangChain backend."""
-    # If Bedrock text is enabled, use the Bedrock helper directly
-    if _use_bedrock_text():
-        return _bedrock_generate_text(prompt, system_prompt=system_prompt, json_mode=json_mode, model=model)
-
-    llm = get_langchain_llm(temperature=0.7, json_mode=json_mode, model_override=model)
-
-    messages = []
-    if system_prompt:
-        messages.append(SystemMessage(content=system_prompt))
-
-    final_prompt = prompt
-    if json_mode:
-        final_prompt = (
-            f"{prompt}\n\n"
-            "Return only valid JSON. Do not add markdown, commentary, or code fences."
-        )
-    messages.append(HumanMessage(content=final_prompt))
-
-    backend_name = "OpenRouter" if _use_openrouter_text() else "Ollama"
-    logger.info("AI Client [%s] → Generating text with json_mode=%s", backend_name, json_mode)
-    
-    response = llm.invoke(messages)
-    content = (response.content or '') if hasattr(response, 'content') else str(response)
-    
-    if isinstance(content, list):
-        content = ''.join(
-            chunk.get('text', '') if isinstance(chunk, dict) else str(chunk)
-            for chunk in content
-        )
-        
-    logger.info("AI Client [%s] ← Response length=%d", backend_name, len(content))
-    return content
-
-
-# ── Amazon Bedrock helpers ───────────────────────────────────────────────────
-
 def _use_bedrock_text() -> bool:
     return getattr(settings, 'USE_BEDROCK_TEXT', False)
 
@@ -101,81 +46,39 @@ def _use_bedrock_image() -> bool:
     return getattr(settings, 'USE_BEDROCK_IMAGE', False)
 
 
-def _bedrock_generate_text(prompt: str, system_prompt: Optional[str] = None, json_mode: bool = False, model: Optional[str] = None) -> str:
-    """Generate text using Amazon Bedrock via `bedrock-runtime`.
-
-    This uses the `invoke_model` API. The exact response schema depends on the
-    model; we attempt to decode JSON output or fall back to raw text.
-    """
-    try:
-        import boto3
-    except Exception as exc:
-        logger.error("AI Client [BEDROCK] boto3 is not installed: %s", exc)
-        raise RuntimeError("boto3 is required for Bedrock support. Install with: pip install boto3")
-
-    model_id = model or getattr(settings, 'BEDROCK_LLM_MODEL', 'amazon/nova-lite')
-    region = getattr(settings, 'AWS_REGION', None)
-
-    input_text = prompt
-    if system_prompt:
-        input_text = f"{system_prompt}\n\n{prompt}"
-    if json_mode:
-        input_text = input_text + "\n\nReturn only valid JSON. Do not add markdown, commentary, or code fences."
-
-    client = boto3.client('bedrock-runtime', region_name=region) if region else boto3.client('bedrock-runtime')
-
-    payload = json.dumps({"input": input_text}).encode('utf-8')
-    logger.info("AI Client [BEDROCK] Invoking model=%s", model_id)
-    resp = client.invoke_model(modelId=model_id, contentType='application/json', accept='application/json', body=payload)
-
-    body = resp.get('body')
-    if hasattr(body, 'read'):
-        body_bytes = body.read()
-    else:
-        body_bytes = body
-
-    try:
-        decoded = body_bytes.decode('utf-8')
-    except Exception:
-        decoded = str(body_bytes)
-
-    # Try to parse JSON; if that fails, return raw text
-    try:
-        parsed = json.loads(decoded)
-        # Many Bedrock models return a dict with outputs; try common keys
-        if isinstance(parsed, dict):
-            if 'output' in parsed:
-                return parsed['output']
-            if 'outputs' in parsed and parsed['outputs']:
-                first = parsed['outputs'][0]
-                if isinstance(first, dict) and 'body' in first:
-                    return first['body']
-                return str(first)
-        return json.dumps(parsed)
-    except Exception:
-        return decoded
-
-
 def _bedrock_generate_image(prompt_text: str, output_path: Optional[str] = None) -> Optional[Image.Image]:
-    """Generate an image using an image model hosted in Bedrock (e.g., Nova Canvas).
-
-    The function attempts to decode a base64 image from the model's JSON response
-    and return a PIL.Image. If the model returns raw binary, we attempt to open
-    it directly.
-    """
+    """Generate an image using Amazon Nova Canvas via Bedrock Runtime."""
     try:
         import boto3
     except Exception as exc:
         logger.error("AI Client [BEDROCK] boto3 is not installed: %s", exc)
         raise RuntimeError("boto3 is required for Bedrock image support. Install with: pip install boto3")
 
-    model_id = getattr(settings, 'BEDROCK_IMAGE_MODEL', 'amazon/nova-canvas')
+    model_id = getattr(settings, 'BEDROCK_IMAGE_MODEL', 'amazon.nova-canvas-v1:0')
     region = getattr(settings, 'AWS_REGION', None)
 
     client = boto3.client('bedrock-runtime', region_name=region) if region else boto3.client('bedrock-runtime')
-    payload = json.dumps({"input": prompt_text}).encode('utf-8')
+    payload = {
+        "taskType": "TEXT_IMAGE",
+        "textToImageParams": {
+            "text": prompt_text,
+        },
+        "imageGenerationConfig": {
+            "numberOfImages": 1,
+            "quality": "standard",
+            "height": 1024,
+            "width": 1024,
+            "cfgScale": 8.0,
+            "seed": 0,
+        },
+    }
     logger.info("AI Client [BEDROCK] Invoking image model=%s", model_id)
-    resp = client.invoke_model(modelId=model_id, contentType='application/json', accept='application/json', body=payload)
+    resp = client.invoke_model(
+        modelId=model_id,
+        contentType='application/json',
+        accept='application/json',
+        body=json.dumps(payload).encode('utf-8'),
+    )
 
     body = resp.get('body')
     if hasattr(body, 'read'):
@@ -190,42 +93,18 @@ def _bedrock_generate_image(prompt_text: str, output_path: Optional[str] = None)
 
     image_bytes = None
     if decoded:
-        # Try to parse JSON and extract base64 image data
         try:
             parsed = json.loads(decoded)
-            # common keys to check
-            for key in ('image', 'body', 'b64_json', 'data'):
-                if key in parsed:
-                    val = parsed[key]
-                    if isinstance(val, str):
-                        # assume base64
-                        try:
-                            image_bytes = base64.b64decode(val)
-                            break
-                        except Exception:
-                            pass
-                    # if it's nested, try first element
-                    if isinstance(val, list) and val and isinstance(val[0], str):
-                        try:
-                            image_bytes = base64.b64decode(val[0])
-                            break
-                        except Exception:
-                            pass
-            # check outputs array
-            if image_bytes is None and isinstance(parsed, dict) and 'outputs' in parsed:
-                outs = parsed['outputs']
-                if outs and isinstance(outs[0], dict) and 'body' in outs[0]:
-                    try:
-                        image_bytes = base64.b64decode(outs[0]['body'])
-                    except Exception:
-                        pass
+            # Nova Canvas responses include a list under `images`.
+            if isinstance(parsed, dict):
+                images = parsed.get('images', [])
+                if images and isinstance(images[0], str):
+                    image_bytes = base64.b64decode(images[0])
         except Exception:
             image_bytes = None
 
-    # If we didn't get JSON-with-base64, treat body_bytes as raw image data
-    if image_bytes is None:
-        if isinstance(body_bytes, (bytes, bytearray)):
-            image_bytes = body_bytes
+    if image_bytes is None and isinstance(body_bytes, (bytes, bytearray)):
+        image_bytes = body_bytes
 
     if image_bytes is None:
         logger.error("AI Client [BEDROCK] No image data returned by model")
@@ -239,6 +118,43 @@ def _bedrock_generate_image(prompt_text: str, output_path: Optional[str] = None)
     except Exception:
         logger.exception("AI Client [BEDROCK] Failed to decode image bytes")
         return None
+
+
+def _langchain_generate(
+    prompt: str,
+    system_prompt: Optional[str] = None,
+    json_mode: bool = False,
+    model: Optional[str] = None,
+) -> str:
+    """Send a chat request using the configured LangChain backend."""
+    llm = get_langchain_llm(temperature=0.7, json_mode=json_mode, model_override=model)
+
+    messages = []
+    if system_prompt:
+        messages.append(SystemMessage(content=system_prompt))
+
+    final_prompt = prompt
+    if json_mode:
+        final_prompt = (
+            f"{prompt}\n\n"
+            "Return only valid JSON. Do not add markdown, commentary, or code fences."
+        )
+    messages.append(HumanMessage(content=final_prompt))
+
+    backend_name = "Bedrock" if _use_bedrock_text() else "Ollama"
+    logger.info("AI Client [%s] -> Generating text with json_mode=%s", backend_name, json_mode)
+
+    response = llm.invoke(messages)
+    content = (response.content or '') if hasattr(response, 'content') else str(response)
+
+    if isinstance(content, list):
+        content = ''.join(
+            chunk.get('text', '') if isinstance(chunk, dict) else str(chunk)
+            for chunk in content
+        )
+
+    logger.info("AI Client [%s] <- Response length=%d", backend_name, len(content))
+    return content
 
 
 # ── Stable Diffusion image helper ─────────────────────────────────────────────
@@ -305,19 +221,6 @@ def _sd_generate(prompt_text: str, output_path: Optional[str] = None) -> Optiona
         return None
 
 
-# ── OpenRouter image helper ──────────────────────────────────────────────────
-
-def _openrouter_generate_image(prompt_text: str, output_path: Optional[str] = None) -> Optional[Image.Image]:
-    """
-    Generate an image for production mode.
-
-    OpenRouter is currently wired for text inference in this project,
-    so image generation falls back to Stable Diffusion.
-    """
-    logger.info("AI Client [PROD] OpenRouter image route → Stable Diffusion fallback")
-    return _sd_generate(prompt_text, output_path=output_path)
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Public API
 # ─────────────────────────────────────────────────────────────────────────────
@@ -329,7 +232,7 @@ def generate_text(
     model: Optional[str] = None,
 ) -> str:
     """
-    Generate text using the configured AI backend (OpenRouter or Ollama via LangChain).
+    Generate text using the configured AI backend (Bedrock or Ollama via LangChain).
 
     Args:
         prompt:        User-facing prompt.
@@ -359,11 +262,9 @@ def generate_image(prompt_text: str, output_path: Optional[str] = None) -> Optio
     Returns:
         PIL.Image object, or None on failure.
     """
-    # Priority: Bedrock (if enabled) -> OpenRouter -> local Stable Diffusion
+    # Priority: Bedrock (if enabled) -> local Stable Diffusion
     if _use_bedrock_image():
         return _bedrock_generate_image(prompt_text, output_path=output_path)
-    if _use_openrouter_image():
-        return _openrouter_generate_image(prompt_text, output_path=output_path)
     return _sd_generate(prompt_text, output_path=output_path)
 
 
@@ -371,7 +272,7 @@ def get_langchain_llm(temperature: float = 0.7, json_mode: bool = False, model_o
     """
     Return a LangChain-compatible chat model for the current environment.
 
-    Production → ChatOpenAI (OpenRouter base URL)
+    Production → ChatBedrockConverse (Amazon Bedrock Nova Lite)
     Development → ChatOllama
 
     Args:
@@ -382,43 +283,36 @@ def get_langchain_llm(temperature: float = 0.7, json_mode: bool = False, model_o
     Returns:
         A LangChain BaseChatModel instance.
     """
-    if _use_openrouter_text():
+    if _use_bedrock_text():
         try:
-            from langchain_openai import ChatOpenAI
+            from langchain_aws import ChatBedrockConverse
         except ImportError as exc:
             raise RuntimeError(
-                "langchain-openai is not installed. "
-                "Run: pip install langchain-openai"
+                "langchain-aws is not installed. "
+                "Run: pip install langchain-aws"
             ) from exc
 
-        api_key = getattr(settings, 'OPENROUTER_API_KEY', '')
-        if not api_key:
-            raise RuntimeError("OPENROUTER_API_KEY is not set. Add it to your .env file.")
+        model_name = model_override or getattr(settings, 'BEDROCK_LLM_MODEL', 'amazon.nova-lite-v1:0')
+        region = getattr(settings, 'AWS_REGION', None)
 
-        model_name = model_override or getattr(settings, 'OPENROUTER_MODEL', 'openai/gpt-3.5-turbo')
-        base_url = getattr(settings, 'OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
-
-        logger.info("AI Client [PROD] LangChain LLM → ChatOpenAI(OpenRouter) model=%s", model_name)
-        llm = ChatOpenAI(
+        logger.info("AI Client [PROD] LangChain LLM -> ChatBedrockConverse model=%s", model_name)
+        llm = ChatBedrockConverse(
             model=model_name,
-            api_key=api_key,
-            base_url=base_url,
+            region_name=region,
             temperature=temperature,
         )
-        if json_mode:
-            llm = llm.bind(response_format={"type": "json_object"})
         return llm
-    else:
-        from langchain_ollama import ChatOllama
-        model_name = model_override or getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
-        logger.info("AI Client [DEV] LangChain LLM → ChatOllama model=%s", model_name)
-        
-        kwargs = {
-            "model": model_name,
-            "temperature": temperature,
-        }
-        if json_mode:
-            kwargs["format"] = "json"
-            
-        return ChatOllama(**kwargs)
+
+    from langchain_ollama import ChatOllama
+    model_name = model_override or getattr(settings, 'OLLAMA_MODEL', 'llama3:8b')
+    logger.info("AI Client [DEV] LangChain LLM -> ChatOllama model=%s", model_name)
+
+    kwargs = {
+        "model": model_name,
+        "temperature": temperature,
+    }
+    if json_mode:
+        kwargs["format"] = "json"
+
+    return ChatOllama(**kwargs)
 

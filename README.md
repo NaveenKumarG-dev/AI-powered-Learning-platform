@@ -36,5 +36,5 @@ Backend API: `http://localhost:8000/api`
 
 Notes
 
-- The backend reads AI config from `server/.env` — set `USE_BEDROCK_TEXT`/`USE_BEDROCK_IMAGE` and AWS credentials to enable Amazon Bedrock (defaults `amazon/nova-lite` and `amazon/nova-canvas`).
+- The backend reads AI config from `server/.env` — set `USE_BEDROCK_TEXT`/`USE_BEDROCK_IMAGE` and AWS credentials to enable Amazon Bedrock (defaults `amazon.nova-lite-v1:0` and `amazon.nova-canvas-v1:0`).
 - Ollama support is preserved; set `OLLAMA_API_URL` / `OLLAMA_MODEL` in `server/.env` to use local Ollama for development.
