@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import LoginPage from './LoginPage';
 import SignUpPage from './SignUpPage';
@@ -43,6 +43,18 @@ describe('Auth pages premium editorial structure', () => {
     ).toBeInTheDocument();
   });
 
+  test('login page shows required-field validation after submit', () => {
+    render(
+      <MemoryRouter>
+        <LoginPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /login/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/email \/ username is required/i);
+  });
+
   test('signup page renders editorial account creation prompt', () => {
     render(
       <MemoryRouter>
@@ -53,6 +65,18 @@ describe('Auth pages premium editorial structure', () => {
     expect(
       screen.getByText(/build your learning identity/i)
     ).toBeInTheDocument();
+  });
+
+  test('signup page shows required-field validation after submit', () => {
+    render(
+      <MemoryRouter>
+        <SignUpPage />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/first name is required/i);
   });
 
   test('forgot password page renders secure access copy', () => {
