@@ -1,41 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { Eye, EyeOff, BookOpen, AlertCircle } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+import { Eye, EyeOff, BookOpen, Loader } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
-
-const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
-
-/**
- * Parse Django REST Framework field-level validation errors into readable strings.
- */
-function parseApiErrors(error: any): string[] {
-  if (!error) return [];
-  if (typeof error === 'string') return [error];
-  if (error.detail) return [error.detail];
-
-  const messages: string[] = [];
-  for (const [field, fieldErrors] of Object.entries(error)) {
-    if (field === 'non_field_errors') {
-      if (Array.isArray(fieldErrors)) {
-        messages.push(...fieldErrors.map(String));
-      } else {
-        messages.push(String(fieldErrors));
-      }
-    } else {
-      const label = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
-      if (Array.isArray(fieldErrors)) {
-        fieldErrors.forEach((msg) => messages.push(`${label}: ${msg}`));
-      } else {
-        messages.push(`${label}: ${fieldErrors}`);
-      }
-    }
-  }
-  return messages.length > 0 ? messages : ['Login failed. Please check your credentials.'];
-}
+import ErrorAlert from '../../components/ErrorAlert';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -43,6 +10,47 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState('');
+  const [validationError, setValidationError] = useState('');
+
+  /**
+   * Extract error messages from the new error format
+   */
+  const getErrorMessages = (): string[] => {
+    if (!error && !localError && !validationError) return [];
+
+    // If local error (connectivity) exists, show it first
+    const messages: string[] = [];
+    if (validationError) {
+      messages.push(validationError);
+    }
+    if (localError) {
+      messages.push(localError);
+    }
+
+    // If error is a string
+    if (typeof error === 'string') {
+      messages.push(error);
+      return messages;
+    }
+
+    // If error is an object with message and details
+    if (error && typeof error === 'object') {
+      // Add main message
+      if (error.message) {
+        messages.push(error.message);
+      }
+
+      // Add detailed field errors
+      if (Array.isArray(error.details) && error.details.length > 0) {
+        messages.push(...error.details);
+      }
+
+      return messages.length > 0 ? messages : ['An error occurred. Please try again.'];
+    }
+
+    return messages.length > 0 ? messages : ['An error occurred. Please try again.'];
+  };
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -55,12 +63,31 @@ export default function LoginPage() {
     // Clear error when component unmounts
     return () => {
       clearAuthError();
+      setLocalError('');
     };
   }, [clearAuthError]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     clearAuthError();
+    setLocalError('');
+    setValidationError('');
+
+    if (!email.trim()) {
+      setValidationError('Email / Username is required.');
+      return;
+    }
+
+    if (!password.trim()) {
+      setValidationError('Password is required.');
+      return;
+    }
+
+    // Quick offline check
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setLocalError('No internet connection. Please check your network and try again.');
+      return;
+    }
 
     const result = await handleLogin({ email, password });
     if (result.meta.requestStatus === 'fulfilled') {
@@ -68,7 +95,19 @@ export default function LoginPage() {
     }
   };
 
-  const errorMessages = error ? parseApiErrors(error) : [];
+  const errorMessages = getErrorMessages();
+
+  // Debug: log auth errors to console for diagnosis
+  useEffect(() => {
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.debug('[LoginPage] auth error in store:', error);
+    }
+    if (localError) {
+      // eslint-disable-next-line no-console
+      console.debug('[LoginPage] localError:', localError);
+    }
+  }, [error, localError]);
 
   return (
     <div className="min-h-screen bg-[#f7f5f1] flex items-center justify-center p-4">
@@ -87,25 +126,17 @@ export default function LoginPage() {
             <p className="text-neutral-600">Login to continue your personalized learning journey</p>
           </div>
 
-          {/* Error Messages */}
-          {errorMessages.length > 0 && (
-            <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-red-800">
-                {errorMessages.length === 1 ? (
-                  <p>{errorMessages[0]}</p>
-                ) : (
-                  <ul className="list-disc pl-4 space-y-1">
-                    {errorMessages.map((msg, i) => (
-                      <li key={i}>{msg}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Error Alert */}
+          <ErrorAlert
+            message={errorMessages}
+            onDismiss={() => {
+              clearAuthError();
+              setLocalError('');
+              setValidationError('');
+            }}
+          />
 
-          <form onSubmit={onSubmit} className="space-y-5">
+          <form onSubmit={onSubmit} noValidate className="space-y-5">
             {/* Email Input */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
@@ -118,7 +149,6 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 focus:border-transparent transition-all"
-                required
               />
             </div>
 
@@ -135,7 +165,6 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 focus:border-transparent transition-all"
-                  required
                 />
                 <button
                   type="button"
@@ -158,33 +187,19 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-neutral-900 text-white py-3 rounded-xl font-medium hover:bg-neutral-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-neutral-900 text-white py-3 rounded-xl font-medium hover:bg-neutral-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {loading ? 'Logging in...' : 'Login'}
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span>Logging in...</span>
+                </>
+              ) : (
+                'Login'
+              )}
             </button>
           </form>
 
-          {/* OR separator and Google button */}
-          <div className="mt-4">
-            <div className="flex items-center gap-3 my-4">
-              <div className="flex-1 h-px bg-neutral-200" />
-              <div className="text-sm text-neutral-500">OR</div>
-              <div className="flex-1 h-px bg-neutral-200" />
-            </div>
-
-            <button
-              onClick={async () => {
-                // Redirect to Supabase Google OAuth
-                const redirectTo = `${window.location.origin}/oauth-callback`;
-                // @ts-ignore
-                await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-              }}
-              className="w-full border border-neutral-200 py-3 rounded-xl flex items-center justify-center gap-3 hover:bg-neutral-50 transition"
-            >
-              <img src="/google-icon.svg" alt="Google" className="w-5 h-5" />
-              <span className="text-sm">Continue with Google</span>
-            </button>
-          </div>
 
           {/* Create Account Link */}
           <div className="mt-6 text-center">

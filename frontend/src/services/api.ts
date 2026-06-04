@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { createClient } from '@supabase/supabase-js';
+import { parseError } from '../utils/errorHandler';
 import {
   User,
   LearningProfile,
@@ -27,35 +27,22 @@ import {
   CodeExecutionTask,
 } from '../types/api';
 
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL;
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY;
 
-const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
-
-// Create axios instance
+// Create axios instance with timeout
 const api: AxiosInstance = axios.create({
   baseURL: (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000/api',
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 second timeout for all requests
 });
 
 // Request interceptor - add auth token
 api.interceptors.request.use(
-  async (config: InternalAxiosRequestConfig) => {
-    try {
-      // Try to read active Supabase session
-      const sessionResp: any = await supabase.auth.getSession();
-      const token = sessionResp?.data?.session?.access_token || localStorage.getItem('access_token');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (e) {
-      // fallback to localStorage token
-      const token = localStorage.getItem('access_token');
-      if (token && config.headers) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem('access_token');
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -64,17 +51,76 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor - handle token refresh
+// Response interceptor - handle token refresh and errors
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      // Clear local auth state and redirect to login
+    let requestUrl = originalRequest?.url || '';
+
+    // Normalize to pathname so both absolute and relative URLs match consistently
+    try {
+      const base = api.defaults.baseURL || window.location.origin;
+      const parsed = new URL(requestUrl, base);
+      requestUrl = parsed.pathname;
+    } catch (e) {
+      // ignore and keep original requestUrl
+    }
+
+    // Auth endpoints regex: covers variations with/without trailing slash
+    const authEndpointRegex = /\/auth\/(login|register|logout|token\/refresh)(\/|$)/i;
+    const isAuthEndpoint = authEndpointRegex.test(requestUrl);
+
+    // Only redirect on 401 if NOT an auth endpoint and not already retried
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint
+    ) {
+      originalRequest._retry = true;
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (refreshToken) {
+          // Send request to refresh token
+          const refreshUrl = `${api.defaults.baseURL || window.location.origin}/auth/token/refresh/`;
+          const response = await axios.post(refreshUrl, { refresh: refreshToken });
+          const newAccessToken = response.data.access;
+          
+          localStorage.setItem('access_token', newAccessToken);
+          
+          // Also update refresh token if provided
+          if (response.data.refresh) {
+            localStorage.setItem('refresh_token', response.data.refresh);
+          }
+          
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          }
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        // Refresh failed, clear state and redirect
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      }
+      
+      // No refresh token available, clear state and redirect
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
       window.location.href = '/login';
+    }
+
+    // For all other errors (including 401 on auth endpoints), attach a parsed error
+    // object for convenience then let the error pass through so thunks can display it.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (error as any).parsed = parseError(error);
+    } catch (e) {
+      // ignore parsing errors
     }
     return Promise.reject(error);
   }

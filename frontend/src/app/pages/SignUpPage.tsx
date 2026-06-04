@@ -1,37 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { Eye, EyeOff, BookOpen, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, BookOpen, ArrowLeft, Loader } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-
-/**
- * Parse Django REST Framework field-level validation errors into readable strings.
- * Django returns errors like: { email: ["already exists"], password: ["too short", "must contain a number"] }
- */
-function parseApiErrors(error: any): string[] {
-  if (!error) return [];
-  if (typeof error === 'string') return [error];
-  if (error.detail) return [error.detail];
-
-  const messages: string[] = [];
-  for (const [field, fieldErrors] of Object.entries(error)) {
-    if (field === 'non_field_errors') {
-      // Non-field errors are general errors not tied to a specific field
-      if (Array.isArray(fieldErrors)) {
-        messages.push(...fieldErrors.map(String));
-      } else {
-        messages.push(String(fieldErrors));
-      }
-    } else {
-      const label = field.charAt(0).toUpperCase() + field.slice(1).replace(/_/g, ' ');
-      if (Array.isArray(fieldErrors)) {
-        fieldErrors.forEach((msg) => messages.push(`${label}: ${msg}`));
-      } else {
-        messages.push(`${label}: ${fieldErrors}`);
-      }
-    }
-  }
-  return messages.length > 0 ? messages : ['Registration failed. Please try again.'];
-}
+import ErrorAlert from '../../components/ErrorAlert';
 
 export default function SignUpPage() {
   const navigate = useNavigate();
@@ -46,6 +17,9 @@ export default function SignUpPage() {
     confirmPassword: '',
   });
   const [validationError, setValidationError] = useState('');
+  const [localError, setLocalError] = useState('');
+
+  const requiredFieldMessage = (label: string) => `${label} is required.`;
 
   useEffect(() => {
     // Redirect if already authenticated
@@ -58,6 +32,7 @@ export default function SignUpPage() {
     // Clear error when component unmounts
     return () => {
       clearAuthError();
+      setLocalError('');
     };
   }, [clearAuthError]);
 
@@ -65,6 +40,37 @@ export default function SignUpPage() {
     e.preventDefault();
     setValidationError('');
     clearAuthError();
+    setLocalError('');
+
+    if (!formData.firstName.trim()) {
+      setValidationError(requiredFieldMessage('First name'));
+      return;
+    }
+
+    if (!formData.lastName.trim()) {
+      setValidationError(requiredFieldMessage('Last name'));
+      return;
+    }
+
+    if (!formData.email.trim()) {
+      setValidationError(requiredFieldMessage('Email'));
+      return;
+    }
+
+    if (!formData.password.trim()) {
+      setValidationError(requiredFieldMessage('Password'));
+      return;
+    }
+
+    if (!formData.confirmPassword.trim()) {
+      setValidationError(requiredFieldMessage('Confirm password'));
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setLocalError('No internet connection. Please check your network and try again.');
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setValidationError('Passwords do not match!');
@@ -94,9 +100,50 @@ export default function SignUpPage() {
       ...formData,
       [e.target.name]: e.target.value,
     });
+    if (validationError) {
+      setValidationError('');
+    }
   };
 
-  const errorMessages = error ? parseApiErrors(error) : [];
+  const getErrorMessages = (): string[] => {
+    const messages: string[] = [];
+
+    // Add validation errors first
+    if (validationError) {
+      messages.push(validationError);
+    }
+
+    if (localError) {
+      messages.push(localError);
+    }
+
+    // Add API errors
+    if (error && typeof error === 'object') {
+      if (error.message) {
+        messages.push(error.message);
+      }
+      if (Array.isArray(error.details) && error.details.length > 0) {
+        messages.push(...error.details);
+      }
+    } else if (typeof error === 'string') {
+      messages.push(error);
+    }
+
+    return messages;
+  };
+
+  const errorMessages = getErrorMessages();
+
+  useEffect(() => {
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.debug('[SignupPage] auth error in store:', error);
+    }
+    if (localError) {
+      // eslint-disable-next-line no-console
+      console.debug('[SignupPage] localError:', localError);
+    }
+  }, [error, localError]);
 
   return (
     <div className="min-h-screen bg-[#f7f5f1] flex items-center justify-center p-4">
@@ -122,27 +169,17 @@ export default function SignUpPage() {
             <p className="text-neutral-600">Start your personalized learning journey today</p>
           </div>
 
-          {/* Error Messages */}
-          {(errorMessages.length > 0 || validationError) && (
-            <div className="mb-5 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-red-800">
-                {validationError ? (
-                  <p>{validationError}</p>
-                ) : errorMessages.length === 1 ? (
-                  <p>{errorMessages[0]}</p>
-                ) : (
-                  <ul className="list-disc pl-4 space-y-1">
-                    {errorMessages.map((msg, i) => (
-                      <li key={i}>{msg}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Error Alert */}
+          <ErrorAlert
+            message={errorMessages}
+            onDismiss={() => {
+              setValidationError('');
+              setLocalError('');
+              clearAuthError();
+            }}
+          />
 
-          <form onSubmit={handleSignUp} className="space-y-5">
+          <form onSubmit={handleSignUp} noValidate className="space-y-5">
             {/* First Name Input */}
             <div>
               <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -156,7 +193,6 @@ export default function SignUpPage() {
                 onChange={handleChange}
                 placeholder="Enter your first name"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 focus:border-transparent transition-all"
-                required
               />
             </div>
 
@@ -173,7 +209,6 @@ export default function SignUpPage() {
                 onChange={handleChange}
                 placeholder="Enter your last name"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 focus:border-transparent transition-all"
-                required
               />
             </div>
 
@@ -190,7 +225,6 @@ export default function SignUpPage() {
                 onChange={handleChange}
                 placeholder="Enter your email"
                 className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 focus:border-transparent transition-all"
-                required
               />
             </div>
 
@@ -208,7 +242,6 @@ export default function SignUpPage() {
                   onChange={handleChange}
                   placeholder="Create a password"
                   className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 focus:border-transparent transition-all"
-                  required
                   minLength={8}
                 />
                 <button
@@ -235,7 +268,6 @@ export default function SignUpPage() {
                   onChange={handleChange}
                   placeholder="Confirm your password"
                   className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-neutral-900/20 focus:border-transparent transition-all"
-                  required
                   minLength={8}
                 />
                 <button
@@ -252,9 +284,16 @@ export default function SignUpPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-neutral-900 text-white py-3 rounded-xl font-medium hover:bg-neutral-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-neutral-900 text-white py-3 rounded-xl font-medium hover:bg-neutral-800 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {loading ? 'Creating Account...' : 'Create Account'}
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  <span>Creating Account...</span>
+                </>
+              ) : (
+                'Create Account'
+              )}
             </button>
           </form>
 
