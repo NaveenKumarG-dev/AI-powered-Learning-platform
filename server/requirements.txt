@@ -6,11 +6,9 @@ edge-tts
 requests
 duckduckgo-search
 
-# PostgreSQL driver
-psycopg2-binary
-
-# Supabase Python SDK (used for server-side helpers)
-supabase
+# MongoDB connector for Django
+django-mongodb-backend
+dnspython>=2.0.0
 
 # Django ecosystem
 djangorestframework

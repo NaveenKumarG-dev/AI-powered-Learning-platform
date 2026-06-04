@@ -34,7 +34,6 @@ class User(AbstractUser):
 
     username = None
     email = models.EmailField(unique=True)
-    supabase_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
     full_name = models.CharField(max_length=255)
     bio = models.TextField(blank=True, default='')
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)

@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authAPI, userAPI } from '../../services/api';
+import { parseError, parseErrors } from '../../utils/errorHandler';
 import {
   User,
   LearningProfile,
@@ -35,7 +36,15 @@ export const register = createAsyncThunk(
       const response = await authAPI.register(data);
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || 'Registration failed');
+      const parsed = parseError(error);
+      // Return both the parsed error and the raw details for better UX
+      return rejectWithValue({
+        message: parsed.message,
+        errorCode: parsed.errorCode,
+        details: parsed.details,
+        isNetworkError: parsed.isNetworkError,
+        isTimeoutError: parsed.isTimeoutError,
+      });
     }
   }
 );
@@ -47,7 +56,15 @@ export const login = createAsyncThunk(
       const response = await authAPI.login(credentials);
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || 'Login failed');
+      const parsed = parseError(error);
+      // Return both the parsed error and the raw details for better UX
+      return rejectWithValue({
+        message: parsed.message,
+        errorCode: parsed.errorCode,
+        details: parsed.details,
+        isNetworkError: parsed.isNetworkError,
+        isTimeoutError: parsed.isTimeoutError,
+      });
     }
   }
 );
@@ -68,7 +85,12 @@ export const fetchUserProfile = createAsyncThunk('auth/fetchUserProfile', async 
     const user = await userAPI.getProfile();
     return user;
   } catch (error: any) {
-    return rejectWithValue(error.response?.data || 'Failed to fetch user profile');
+    const parsed = parseError(error);
+    return rejectWithValue({
+      message: parsed.message,
+      errorCode: parsed.errorCode,
+      details: parsed.details,
+    });
   }
 });
 
@@ -79,7 +101,12 @@ export const updateUserProfile = createAsyncThunk(
       const user = await userAPI.updateProfile(data);
       return user;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || 'Failed to update profile');
+      const parsed = parseError(error);
+      return rejectWithValue({
+        message: parsed.message,
+        errorCode: parsed.errorCode,
+        details: parsed.details,
+      });
     }
   }
 );
@@ -91,7 +118,12 @@ export const updateLearningProfile = createAsyncThunk(
       const profile = await userAPI.updateLearningProfile(data);
       return profile;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data || 'Failed to update learning profile');
+      const parsed = parseError(error);
+      return rejectWithValue({
+        message: parsed.message,
+        errorCode: parsed.errorCode,
+        details: parsed.details,
+      });
     }
   }
 );
@@ -130,7 +162,7 @@ const authSlice = createSlice({
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string | ApiError;
+        state.error = (action.payload as string | ApiError) || (action.error?.message as string) || 'An error occurred during registration.';
       });
 
     // Login
@@ -151,7 +183,7 @@ const authSlice = createSlice({
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string | ApiError;
+        state.error = (action.payload as string | ApiError) || (action.error?.message as string) || 'An error occurred during login.';
       });
 
     // Logout
@@ -177,7 +209,7 @@ const authSlice = createSlice({
       })
       .addCase(fetchUserProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string | ApiError;
+        state.error = (action.payload as string | ApiError) || (action.error?.message as string) || 'Failed to fetch user profile.';
       });
 
     // Update user profile
@@ -192,7 +224,7 @@ const authSlice = createSlice({
       })
       .addCase(updateUserProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string | ApiError;
+        state.error = (action.payload as string | ApiError) || (action.error?.message as string) || 'Failed to update profile.';
       });
 
     // Update learning profile
@@ -209,7 +241,7 @@ const authSlice = createSlice({
       })
       .addCase(updateLearningProfile.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload as string | ApiError;
+        state.error = (action.payload as string | ApiError) || (action.error?.message as string) || 'Failed to update preferences.';
       });
   },
 });
