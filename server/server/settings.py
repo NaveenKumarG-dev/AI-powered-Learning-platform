@@ -45,6 +45,7 @@ else:
 # Application definition
 
 INSTALLED_APPS = [
+    'django_mongodb_backend',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -94,30 +95,13 @@ WSGI_APPLICATION = 'server.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-database_url = os.environ.get('DATABASE_URL', '').strip()
-if database_url:
-    parsed_url = urllib.parse.urlparse(database_url)
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': parsed_url.path.lstrip('/'),
-            'USER': parsed_url.username or '',
-            'PASSWORD': parsed_url.password or '',
-            'HOST': parsed_url.hostname or '',
-            'PORT': parsed_url.port or '5432',
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_mongodb_backend',
+        'NAME': os.environ.get('MONGODB_NAME', 'learnpath'),
+        'HOST': os.environ.get('MONGODB_URI', 'mongodb+srv://naveen13524g_db_user:jodqJuVnlgPzNJZ2@learnpath.pfmr44d.mongodb.net/learnpath?retryWrites=true&w=majority&appName=learnpath&tlsAllowInvalidCertificates=true'),
     }
-else:
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.environ.get('SUPABASE_DB_NAME', 'postgres'),
-            'USER': os.environ.get('SUPABASE_DB_USER', 'postgres'),
-            'PASSWORD': os.environ.get('SUPABASE_DB_PASSWORD', ''),
-            'HOST': os.environ.get('SUPABASE_DB_HOST', 'db.qujfeuczrpnwhkxrufij.supabase.co'),
-            'PORT': os.environ.get('SUPABASE_DB_PORT', '5432'),
-        }
-    }
+}
 
 
 # Password validation
@@ -159,7 +143,9 @@ STATIC_URL = 'static/'
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'
+
+SILENCED_SYSTEM_CHECKS = ['mongodb.E001']
 
 # Custom user model
 AUTH_USER_MODEL = 'api.User'
@@ -182,7 +168,7 @@ ASGI_APPLICATION = 'server.asgi.application'
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'api.auth_supabase.SupabaseAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
