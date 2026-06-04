@@ -4,6 +4,7 @@
 pillow
 edge-tts
 requests
+duckduckgo-search
 
 # PostgreSQL driver
 psycopg2-binary

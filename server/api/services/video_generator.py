@@ -3,7 +3,7 @@
 =============================================
 Stage 1 — Video Blueprint Generator  (LLM → structured JSON)
 Stage 2 — Template Engine             (Hardcoded premium HTML templates)
-Stage 3 — Slide Render Engine          (Backend: SD + Playwright + TTS + FFmpeg)
+Stage 3 — Slide Render Engine          (Backend: DuckDuckGo + Playwright + TTS + FFmpeg)
 """
 
 import asyncio
@@ -12,11 +12,14 @@ import logging
 import os
 import subprocess
 import time
+from io import BytesIO
 from pathlib import Path
 from typing import Optional
 
+import requests
 from django.conf import settings
 from django.utils import timezone
+from duckduckgo_search import DDGS
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -34,40 +37,13 @@ TTS_VOICE = "en-US-ChristopherNeural"
 # Lazy-loaded Global Resources
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_sd_pipe = None
-
-
-def _get_sd_pipeline():
-    """Lazy-load Stable Diffusion pipeline with LCM LoRA."""
-    global _sd_pipe
-    if _sd_pipe is not None:
-        return _sd_pipe
-    
-    import torch
-    from diffusers import StableDiffusionPipeline, LCMScheduler
-
-    model_id = "runwayml/stable-diffusion-v1-5"
-    lora_id = "latent-consistency/lcm-lora-sdv1-5"
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    logger.info("Loading Stable Diffusion on %s ...", device)
-    pipe = StableDiffusionPipeline.from_pretrained(
-        model_id,
-        torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-        safety_checker=None,
-    ).to(device)
-
-    pipe.enable_attention_slicing()
-    pipe.enable_vae_slicing()
-    if device == "cuda":
-        pipe.enable_model_cpu_offload()
-
-    pipe.load_lora_weights(lora_id)
-    pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-
-    _sd_pipe = pipe
-    logger.info("✅ Stable Diffusion ready.")
-    return _sd_pipe
+_HTTP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -99,11 +75,6 @@ class VideoGeneratorService:
         from api.models import VideoTask
         VideoTask.objects.filter(pk=self.task_id).update(**fields)
 
-    def _update_task(self, **fields):
-        """Update the VideoTask record in-place."""
-        from api.models import VideoTask
-        VideoTask.objects.filter(pk=self.task_id).update(**fields)
-
     # ═══════════════════════════════════════════════════════════════════
     # STAGE 1 — VIDEO BLUEPRINT GENERATOR
     # ═══════════════════════════════════════════════════════════════════
@@ -120,7 +91,7 @@ class VideoGeneratorService:
         logger.info("📡 LLM response: %d chars", len(content))
         return content
 
-    def stage1_generate_blueprint(self, topic: str, content: str = None, max_retries: int = 3) -> dict:
+    def stage1_generate_blueprint(self, topic: str, content: Optional[str] = None, max_retries: int = 3) -> dict:
         """
         STAGE 1: Call LLM to produce a structured video blueprint (JSON).
         """
@@ -402,29 +373,49 @@ Topic: {topic}
     # STAGE 3 — SLIDE RENDER ENGINE
     # ═══════════════════════════════════════════════════════════════════
 
-    # ─── 3a. Image Generation (Stable Diffusion) ───────────────────────
+    # ─── 3a. Image Generation (DuckDuckGo Search) ─────────────────────
 
-    def generate_image_sd(self, prompt_text: str, output_path: str) -> Optional[str]:
-        """Generate a flat educational illustration via SD + LCM LoRA."""
-        full_prompt = (
-            f"simple flat illustration of {prompt_text}, "
-            "minimal design, clean white background, "
-            "educational graphic, vector style, no text"
-        )
+    def _download_image(self, image_url: str, output_path: str, referer: Optional[str] = None) -> bool:
+        """Download an image URL and persist it as a local file."""
+        headers = dict(_HTTP_HEADERS)
+        if referer:
+            headers["Referer"] = referer
+
+        response = requests.get(image_url, headers=headers, timeout=20, stream=True)
+        response.raise_for_status()
+
+        image = Image.open(BytesIO(response.content)).convert("RGB")
+        image.save(output_path)
+        return True
+
+    def generate_image_duckduckgo(self, prompt_text: str, output_path: str) -> Optional[str]:
+        """Find a relevant image via DuckDuckGo Images and download it locally."""
         try:
-            pipe = _get_sd_pipeline()
-            image = pipe(
-                prompt=full_prompt,
-                num_inference_steps=10,
-                guidance_scale=1.5,
-                height=512,
-                width=512,
-            ).images[0]
-            image.save(output_path)
-            logger.info("✅ Image generated: %s", os.path.basename(output_path))
-            return output_path
+            search_query = f"{prompt_text} educational illustration"
+            logger.info("🔎 DuckDuckGo image search: %s", search_query)
+
+            with DDGS() as ddgs:
+                results = ddgs.images(search_query, max_results=5)
+
+                for result in results:
+                    image_url = result.get("image") or result.get("thumbnail")
+                    if not image_url:
+                        continue
+
+                    try:
+                        self._download_image(image_url, output_path, referer=result.get("url"))
+                        logger.info("✅ DuckDuckGo image saved: %s", os.path.basename(output_path))
+                        return output_path
+                    except Exception as exc:
+                        logger.warning("⚠️  Could not download DuckDuckGo result: %s", exc)
+
+            logger.warning("⚠️  No downloadable DuckDuckGo image found for: %s", prompt_text)
+            return None
+        except ImportError as exc:
+            logger.error("⚠️  duckduckgo-search is not installed: %s", exc)
+            return None
         except Exception as e:
-            logger.error("⚠️  SD error: %s", e)
+            logger.error("⚠️  DuckDuckGo image lookup error: %s", e)
             return None
 
     # ─── 3b. HTML Population ───────────────────────────────────────────
@@ -524,11 +515,6 @@ Topic: {topic}
             logger.error("❌ Playwright error: %s — using PIL fallback", e)
             return self._pil_fallback_slide(output_png)
 
-    def _pil_fallback_slide(self, output_png: str) -> str:
-        """Minimal PIL fallback."""
-        img = Image.new("RGB", (SLIDE_W, SLIDE_H), color="#0d1117")
-        img.save(output_png)
-        return output_png
     def _pil_fallback_slide(self, output_png: str) -> str:
         """Minimal PIL fallback."""
         img = Image.new("RGB", (SLIDE_W, SLIDE_H), color="#0d1117")
@@ -650,9 +636,9 @@ Topic: {topic}
             image_path = None
             image_prompt = slide.get("image_prompt", "").strip()
             if image_prompt:
-                logger.info("🎨 Generating SD image...")
+                logger.info("🎨 Looking up image via DuckDuckGo...")
                 img_out = os.path.join(slide_dir, "image.png")
-                image_path = self.generate_image_sd(image_prompt, img_out)
+                image_path = self.generate_image_duckduckgo(image_prompt, img_out)
 
             # 3b: Populate HTML
             populated_html = self.populate_template(template_html, slide, image_path, theme=theme)
@@ -712,7 +698,7 @@ Topic: {topic}
     # FULL PIPELINE ORCHESTRATOR
     # ═══════════════════════════════════════════════════════════════════
 
-    def run(self, topic: str, content: str = None) -> str:
+    def run(self, topic: str, content: Optional[str] = None) -> str:
         """
         Execute the full 3-stage video generation pipeline.
         
