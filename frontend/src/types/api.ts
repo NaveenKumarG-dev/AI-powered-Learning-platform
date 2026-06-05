@@ -1,7 +1,7 @@
 // TypeScript interfaces matching backend models
 
 export interface User {
-  id: number;
+  id: string | number;
   email: string;
   first_name: string;
   last_name: string;
@@ -14,8 +14,8 @@ export interface User {
 }
 
 export interface LearningProfile {
-  id: number;
-  user: number;
+  id: string | number;
+  user: string | number;
   learning_style: 'visual' | 'auditory' | 'reading_writing' | 'kinesthetic';
   preferred_depth: 'beginner' | 'intermediate' | 'advanced';
   learning_pace: 'slow' | 'moderate' | 'fast';
@@ -25,7 +25,7 @@ export interface LearningProfile {
 }
 
 export interface Course {
-  id: number;
+  id: string | number;
   name: string;  // Backward compatibility
   title: string;
   description: string;
@@ -44,8 +44,8 @@ export interface Course {
 }
 
 export interface Module {
-  id: number;
-  course: number;
+  id: string | number;
+  course: string | number;
   title: string;
   description: string;
   order: number;
@@ -56,8 +56,8 @@ export interface Module {
 }
 
 export interface Lesson {
-  id: number;
-  module: number;
+  id: string | number;
+  module: string | number;
   title: string;
   description: string;
   content: string;
@@ -67,8 +67,8 @@ export interface Lesson {
 }
 
 export interface Resource {
-  id: number;
-  lesson: number;
+  id: string | number;
+  lesson: string | number;
   title: string;
   resource_type: 'video' | 'pdf' | 'quiz' | 'mindmap' | 'notes' | 'audio' | 'image' | 'reel' | 'video_script' | 'ppt' | 'external_link' | 'code_exercise';
   file?: string;
@@ -92,8 +92,8 @@ export interface SampleCodeContentJson {
 }
 
 export interface Enrollment {
-  id: number;
-  user: number;
+  id: string | number;
+  user: string | number;
   course: Course;
   status: 'active' | 'completed' | 'paused';
   enrolled_at: string;
@@ -103,9 +103,9 @@ export interface Enrollment {
 }
 
 export interface Question {
-  id: number;
-  course?: number;
-  module?: number;
+  id: string | number;
+  course?: string | number;
+  module?: string | number;
   question_type: 'diagnostic' | 'topic_quiz' | 'final_quiz';
   question_text: string;
   options: { [key: string]: string };
@@ -117,8 +117,8 @@ export interface Question {
 
 export interface QuizAttempt {
   id: string;
-  user: number;
-  enrollment?: number;
+  user: string | number;
+  enrollment?: string | number;
   quiz_type: 'diagnostic' | 'topic_quiz' | 'final_quiz';
   started_at: string;
   submitted_at?: string;
@@ -129,16 +129,16 @@ export interface QuizAttempt {
 }
 
 export interface QuizAnswer {
-  id: number;
+  id: string | number;
   quiz_attempt: string;
-  question: number;
+  question: string | number;
   selected_option: string;
   is_correct: boolean;
 }
 
 export interface ModuleProgress {
-  id: number;
-  enrollment: number;
+  id: string | number;
+  enrollment: string | number;
   module: Module;
   status: 'not_started' | 'in_progress' | 'completed';
   progress_percentage: number;

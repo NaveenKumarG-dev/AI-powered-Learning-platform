@@ -11,7 +11,7 @@ export function CourseLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { enrollmentId } = useParams();
-  const eId = enrollmentId ? parseInt(enrollmentId) : null;
+  const eId = enrollmentId || null;
 
   const { syllabus, loading, error, enrollmentId: storedEId } = useAppSelector(
     (state) => state.syllabus

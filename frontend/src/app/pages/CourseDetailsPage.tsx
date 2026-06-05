@@ -37,7 +37,7 @@ import {
 } from '../components/ui/dialog';
 
 interface CourseCurriculum {
-  id: number;
+  id: string | number;
   user_identifier: string; // Anonymized like "Student #1"
   enrolled_at: string;
   knowledge_level: string;
@@ -78,7 +78,7 @@ export default function CourseDetailsPage() {
   const [curricula, setCurricula] = useState<CourseCurriculum[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedCurricula, setExpandedCurricula] = useState<Set<number>>(new Set());
+  const [expandedCurricula, setExpandedCurricula] = useState<Set<string | number>>(new Set());
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [assessmentDialogOpen, setAssessmentDialogOpen] = useState(false);
@@ -96,11 +96,11 @@ export default function CourseDetailsPage() {
       setError(null);
 
       // Load course details
-      const courseData = await courseAPI.get(Number(courseId));
+      const courseData = await courseAPI.get(courseId!);
       setCourse(courseData);
 
       // Load all curricula for this course
-      const curriculaData = await courseAPI.getCourseEnrollments(Number(courseId));
+      const curriculaData = await courseAPI.getCourseEnrollments(courseId!);
       setCurricula(curriculaData.curricula || []);
     } catch (err: any) {
       console.error('Failed to load course data:', err);
@@ -110,7 +110,7 @@ export default function CourseDetailsPage() {
     }
   };
 
-  const toggleCurriculum = (enrollmentId: number) => {
+  const toggleCurriculum = (enrollmentId: string | number) => {
     const newExpanded = new Set(expandedCurricula);
     if (newExpanded.has(enrollmentId)) {
       newExpanded.delete(enrollmentId);
@@ -141,7 +141,7 @@ export default function CourseDetailsPage() {
     setAssessmentDialogOpen(true);
   };
 
-  const handleEnrollmentComplete = (enrollmentId: number) => {
+  const handleEnrollmentComplete = (enrollmentId: string | number) => {
     console.log('Enrollment created:', enrollmentId);
     navigate(`/course/${enrollmentId}`);
   };
