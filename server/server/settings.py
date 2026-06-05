@@ -22,6 +22,16 @@ try:
 except ImportError:
     pass  # python-dotenv not installed; rely on shell environment
 
+# Sanitize AWS credentials in environment for Vercel deployment.
+# Vercel serverless environment automatically injects its own AWS_SESSION_TOKEN.
+# If a developer configures their own AWS_ACCESS_KEY_ID (e.g. starting with 'AKIA'),
+# boto3 will try to combine it with Vercel's internal AWS_SESSION_TOKEN and fail.
+aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+if aws_access_key and aws_session_token:
+    if aws_access_key.startswith('AKIA') or os.environ.get('VERCEL') == '1':
+        del os.environ['AWS_SESSION_TOKEN']
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

@@ -23,7 +23,10 @@ def test_nova_text(client, model_id):
         text_parts = [part.get("text", "") for part in content if isinstance(part, dict)]
         
         print("Success! Response from model:")
-        print("".join(text_parts).strip())
+        import sys
+        text_content = "".join(text_parts).strip()
+        encoded_text = text_content.encode(sys.stdout.encoding or 'utf-8', errors='replace').decode(sys.stdout.encoding or 'utf-8')
+        print(encoded_text)
     except Exception as e:
         print(f"Failed to test text model: {e}")
 
@@ -84,8 +87,16 @@ def main():
     image_model = os.getenv("BEDROCK_IMAGE_MODEL", "amazon.nova-canvas-v1:0")
     
     # Check if we have aws credentials
-    if not os.getenv("AWS_ACCESS_KEY_ID") or not os.getenv("AWS_SECRET_ACCESS_KEY"):
+    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+    if not aws_access_key or not aws_secret_key:
         print("Warning: AWS credentials not found in env. Ensure they are correctly spelled in .env")
+
+    # If using permanent credentials (starting with AKIA), delete any session token in the environment to prevent mismatch
+    if aws_access_key and aws_access_key.startswith("AKIA") and "AWS_SESSION_TOKEN" in os.environ:
+        print("AKIA permanent key detected. Removing AWS_SESSION_TOKEN from environment to prevent mismatch.")
+        del os.environ["AWS_SESSION_TOKEN"]
 
     print(f"Connecting to AWS Bedrock in region: {aws_region}")
     
@@ -93,9 +104,8 @@ def main():
     client = boto3.client(
         "bedrock-runtime",
         region_name=aws_region,
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-        aws_session_token=os.getenv("AWS_SESSION_TOKEN"), # Will be None if empty, which is fine
+        aws_access_key_id=aws_access_key,
+        aws_secret_access_key=aws_secret_key,
     )
 
     test_nova_text(client, text_model)
