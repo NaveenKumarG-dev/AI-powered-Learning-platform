@@ -33,7 +33,7 @@ export function CourseOutlineSidebar({
 }: CourseOutlineSidebarProps) {
   const navigate = useNavigate();
   const { enrollmentId, moduleIndex, topicIndex } = useParams();
-  const eId = enrollmentId ? parseInt(enrollmentId) : null;
+  const eId = enrollmentId || null;
   const currentModuleIdx = moduleIndex ? parseInt(moduleIndex) : -1;
   const currentTopicIdx = topicIndex ? parseInt(topicIndex) : -1;
 

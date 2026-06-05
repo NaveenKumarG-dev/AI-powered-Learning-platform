@@ -9,8 +9,8 @@ import { Button } from '../components/ui/button';
 export default function CodingAssessmentPage() {
   const navigate = useNavigate();
   const { enrollmentId, moduleIndex, topicIndex, problemId } = useParams();
-  const eId = enrollmentId ? parseInt(enrollmentId, 10) : null;
-  const pId = problemId ? parseInt(problemId, 10) : null;
+  const eId = enrollmentId || null;
+  const pId = problemId || null;
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

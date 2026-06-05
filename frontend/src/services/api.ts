@@ -189,12 +189,12 @@ export const courseAPI = {
     return response.data;
   },
 
-  get: async (id: number): Promise<Course> => {
+  get: async (id: string | number): Promise<Course> => {
     const response = await api.get<Course>(`/courses/${id}/`);
     return response.data;
   },
 
-  getModules: async (courseId: number): Promise<Module[]> => {
+  getModules: async (courseId: string | number): Promise<Module[]> => {
     const response = await api.get<Module[]>(`/courses/${courseId}/modules/`);
     return response.data;
   },
@@ -204,7 +204,7 @@ export const courseAPI = {
     return response.data;
   },
 
-  getCourseEnrollments: async (courseId: number): Promise<any> => {
+  getCourseEnrollments: async (courseId: string | number): Promise<any> => {
     const response = await api.get(`/courses/${courseId}/enrollments_with_curricula/`);
     return response.data;
   },
@@ -214,12 +214,12 @@ export const courseAPI = {
     return response.data;
   },
 
-  update: async (id: number, data: Partial<Course>): Promise<Course> => {
+  update: async (id: string | number, data: Partial<Course>): Promise<Course> => {
     const response = await api.patch<Course>(`/courses/${id}/`, data);
     return response.data;
   },
 
-  delete: async (id: number): Promise<void> => {
+  delete: async (id: string | number): Promise<void> => {
     await api.delete(`/courses/${id}/`);
   },
 };
@@ -265,12 +265,12 @@ export const moduleAPI = {
     return response.data;
   },
 
-  get: async (id: number): Promise<Module> => {
+  get: async (id: string | number): Promise<Module> => {
     const response = await api.get<Module>(`/modules/${id}/`);
     return response.data;
   },
 
-  getLessons: async (moduleId: number): Promise<Lesson[]> => {
+  getLessons: async (moduleId: string | number): Promise<Lesson[]> => {
     const response = await api.get<Lesson[]>(`/modules/${moduleId}/lessons/`);
     return response.data;
   },
@@ -286,12 +286,12 @@ export const lessonAPI = {
     return response.data;
   },
 
-  get: async (id: number): Promise<Lesson> => {
+  get: async (id: string | number): Promise<Lesson> => {
     const response = await api.get<Lesson>(`/lessons/${id}/`);
     return response.data;
   },
 
-  getResources: async (lessonId: number): Promise<Resource[]> => {
+  getResources: async (lessonId: string | number): Promise<Resource[]> => {
     const response = await api.get<Resource[]>(`/lessons/${lessonId}/resources/`);
     return response.data;
   },
@@ -307,27 +307,27 @@ export const enrollmentAPI = {
     return response.data;
   },
 
-  get: async (id: number): Promise<Enrollment> => {
+  get: async (id: string | number): Promise<Enrollment> => {
     const response = await api.get<Enrollment>(`/enrollments/${id}/`);
     return response.data;
   },
 
-  create: async (data: { course_id: number; learning_goals?: string }): Promise<Enrollment> => {
+  create: async (data: { course_id: string | number; learning_goals?: string }): Promise<Enrollment> => {
     const response = await api.post<Enrollment>('/enrollments/', data);
     return response.data;
   },
 
-  getProgress: async (id: number): Promise<any> => {
+  getProgress: async (id: string | number): Promise<any> => {
     const response = await api.get(`/enrollments/${id}/progress/`);
     return response.data;
   },
 
-  startDiagnosticQuiz: async (id: number): Promise<{ attempt_id: string; questions: Question[] }> => {
+  startDiagnosticQuiz: async (id: string | number): Promise<{ attempt_id: string; questions: Question[] }> => {
     const response = await api.post(`/enrollments/${id}/diagnostic_quiz/`);
     return response.data;
   },
 
-  generateMindMap: async (id: number): Promise<MindMapData> => {
+  generateMindMap: async (id: string | number): Promise<MindMapData> => {
     const response = await api.post(`/enrollments/${id}/generate_mindmap/`);
     return response.data;
   },
@@ -351,7 +351,7 @@ export const quizAPI = {
 
   submitQuiz: async (data: {
     attempt_id: string;
-    answers: Array<{ question_id: number; selected_option: string }>;
+    answers: Array<{ question_id: string | number; selected_option: string }>;
   }): Promise<{
     score: number;
     correct_answers: number;
@@ -383,7 +383,7 @@ export const progressAPI = {
   },
 
   updateModuleProgress: async (
-    id: number,
+    id: string | number,
     data: Partial<ModuleProgress>
   ): Promise<ModuleProgress> => {
     const response = await api.patch<ModuleProgress>(`/module-progress/${id}/`, data);
@@ -391,7 +391,7 @@ export const progressAPI = {
   },
 
   // Lesson Progress methods
-  getLessonProgressByEnrollment: async (enrollmentId: number): Promise<any[]> => {
+  getLessonProgressByEnrollment: async (enrollmentId: string | number): Promise<any[]> => {
     const response = await api.get(`/lesson-progress/by_enrollment/`, {
       params: { enrollment_id: enrollmentId },
     });
@@ -399,8 +399,8 @@ export const progressAPI = {
   },
 
   markLessonComplete: async (data: {
-    enrollment_id: number;
-    lesson_id: number;
+    enrollment_id: string | number;
+    lesson_id: string | number;
     is_completed: boolean;
   }): Promise<any> => {
     const response = await api.post('/lesson-progress/mark_complete/', data);
@@ -420,12 +420,12 @@ export const roadmapAPI = {
     return response.data;
   },
 
-  get: async (id: number): Promise<LearningRoadmap> => {
+  get: async (id: string | number): Promise<LearningRoadmap> => {
     const response = await api.get<LearningRoadmap>(`/learning-roadmaps/${id}/`);
     return response.data;
   },
 
-  generate: async (enrollmentId: number): Promise<LearningRoadmap> => {
+  generate: async (enrollmentId: string | number): Promise<LearningRoadmap> => {
     const response = await api.post<LearningRoadmap>('/learning-roadmaps/generate/', {
       enrollment_id: enrollmentId,
     });
@@ -438,20 +438,20 @@ export const roadmapAPI = {
 // ============================================================================
 
 export const resourceAPI = {
-  listByLesson: async (lessonId: number): Promise<Resource[]> => {
+  listByLesson: async (lessonId: string | number): Promise<Resource[]> => {
     const response = await api.get<PaginatedResponse<Resource>>('/resources/', {
       params: { lesson: lessonId }
     });
     return response.data.results;
   },
 
-  get: async (id: number): Promise<Resource> => {
+  get: async (id: string | number): Promise<Resource> => {
     const response = await api.get<Resource>(`/resources/${id}/`);
     return response.data;
   },
 
   createNote: async (data: {
-    lesson: number;
+    lesson: string | number;
     title: string;
     content_text: string;
   }): Promise<Resource> => {
@@ -677,7 +677,7 @@ export interface RemediationResponse {
 
 export const assessmentAPI = {
   generateInitialAssessment: async (data: {
-    course_id: number;
+    course_id: string | number;
     course_name: string;
   }): Promise<InitialAssessmentResponse> => {
     const response = await api.post<InitialAssessmentResponse>(
@@ -688,7 +688,7 @@ export const assessmentAPI = {
   },
 
   evaluateAssessment: async (data: {
-    course_id: number;
+    course_id: string | number;
     course_name: string;
     questions: AssessmentQuestion[];
     answers: number[];  // Changed to number[] (indices 0-3)
@@ -704,8 +704,8 @@ export const assessmentAPI = {
   },
 
   generateTopicContent: async (data: {
-    enrollment_id: number;
-    module_id: number;
+    enrollment_id: string | number;
+    module_id: string | number;
     topic_name: string;
     regenerate?: boolean;
   }): Promise<TopicContentResponse> => {
@@ -717,7 +717,7 @@ export const assessmentAPI = {
   },
 
   generateTopicQuiz: async (data: {
-    lesson_id: number;
+    lesson_id: string | number;
     topic_name: string;
   }): Promise<TopicQuizResponse> => {
     const response = await api.post<TopicQuizResponse>(
@@ -728,8 +728,8 @@ export const assessmentAPI = {
   },
 
   generateDynamicScript: async (data: {
-    enrollment_id: number;
-    module_id: number;
+    enrollment_id: string | number;
+    module_id: string | number;
     topic_name: string;
     regenerate?: boolean;
   }): Promise<DynamicScriptResponse> => {
@@ -741,9 +741,9 @@ export const assessmentAPI = {
   },
 
   evaluateTopicQuiz: async (data: {
-    enrollment_id: number;
-    module_id: number;
-    lesson_id?: number;
+    enrollment_id: string | number;
+    module_id: string | number;
+    lesson_id?: string | number;
     question_ids: number[];
     answers: string[];
   }): Promise<TopicEvaluationResponse> => {
@@ -754,7 +754,7 @@ export const assessmentAPI = {
     return response.data;
   },
 
-  getQuizAttempts: async (enrollmentId: number): Promise<any[]> => {
+  getQuizAttempts: async (enrollmentId: string | number): Promise<any[]> => {
     const response = await api.get('/quiz-attempts/by_enrollment/', {
       params: { enrollment_id: enrollmentId },
     });
@@ -762,7 +762,7 @@ export const assessmentAPI = {
   },
 
   generateTopicMindMap: async (data: {
-    lesson_id: number;
+    lesson_id: string | number;
     topic_name: string;
   }): Promise<MindMapData> => {
     const response = await api.post<MindMapData>(
@@ -773,8 +773,8 @@ export const assessmentAPI = {
   },
 
   generateRemediationContent: async (data: {
-    enrollment_id: number;
-    lesson_id: number;
+    enrollment_id: string | number;
+    lesson_id: string | number;
     topic_name: string;
     weak_areas: string[];
   }): Promise<RemediationResponse> => {
@@ -785,8 +785,8 @@ export const assessmentAPI = {
     return response.data;
   },
 
-  getSyllabus: async (enrollmentId: number): Promise<{
-    enrollment_id: number;
+  getSyllabus: async (enrollmentId: string | number): Promise<{
+    enrollment_id: string | number;
     course_name: string;
     syllabus: Syllabus;
     generated_by_model: string;
@@ -805,8 +805,8 @@ export const assessmentAPI = {
 
 export const codingAPI = {
   generateProblem: async (data: {
-    enrollment_id: number;
-    module_id: number;
+    enrollment_id: string | number;
+    module_id: string | number;
     topic_name: string;
     regenerate?: boolean;
   }): Promise<CodingProblem> => {
@@ -814,14 +814,14 @@ export const codingAPI = {
     return response.data;
   },
 
-  getProblem: async (problemId: number): Promise<CodingProblem> => {
+  getProblem: async (problemId: string | number): Promise<CodingProblem> => {
     const response = await api.get<CodingProblem>(`/coding/problems/${problemId}/`);
     return response.data;
   },
 
   submitCode: async (data: {
-    enrollment_id: number;
-    problem_id: number;
+    enrollment_id: string | number;
+    problem_id: string | number;
     source_code: string;
     language?: 'python';
   }): Promise<{ submission: CodeSubmission; task: CodeExecutionTask }> => {
@@ -846,8 +846,8 @@ export const codingAPI = {
   },
 
   generateSampleCode: async (data: {
-    enrollment_id: number;
-    module_id: number;
+    enrollment_id: string | number;
+    module_id: string | number;
     topic_name: string;
     regenerate?: boolean;
   }): Promise<Resource> => {
@@ -916,9 +916,9 @@ export const podcastAPI = {
     instruction?: string;
     person1?: string;
     person2?: string;
-    lesson_id?: number;
+    lesson_id?: string | number;
     topic_name?: string;
-    enrollment_id?: number;  // Pass enrollment to apply personalized system prompt
+    enrollment_id?: string | number;  // Pass enrollment to apply personalized system prompt
   }): Promise<{
     audio_url: string;
     message: string;
@@ -935,7 +935,7 @@ export const podcastAPI = {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
-  id?: number;
+  id?: string | number;
   topic_name?: string;
   created_at?: string;
 }
@@ -954,20 +954,20 @@ export const chatAPI = {
     context: string;
     topic_name: string;
     course_name: string;
-    enrollment_id: number;
+    enrollment_id: string | number;
   }): Promise<ChatResponse> => {
     const response = await api.post<ChatResponse>('/chat/', data);
     return response.data;
   },
   
-  getChatHistory: async (enrollmentId: number): Promise<ChatHistoryResponse> => {
+  getChatHistory: async (enrollmentId: string | number): Promise<ChatHistoryResponse> => {
     const response = await api.get<ChatHistoryResponse>('/chat/history/', {
       params: { enrollment_id: enrollmentId }
     });
     return response.data;
   },
   
-  clearChatHistory: async (enrollmentId: number): Promise<{ message: string; deleted_count: number }> => {
+  clearChatHistory: async (enrollmentId: string | number): Promise<{ message: string; deleted_count: number }> => {
     const response = await api.delete('/chat/clear/', {
       params: { enrollment_id: enrollmentId }
     });
