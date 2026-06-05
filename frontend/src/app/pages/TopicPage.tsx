@@ -55,7 +55,7 @@ export default function TopicPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { enrollmentId, moduleIndex, topicIndex } = useParams();
-  const eId = enrollmentId ? parseInt(enrollmentId) : null;
+  const eId = enrollmentId || null;
   const mIdx = moduleIndex ? parseInt(moduleIndex) : 0;
   const tIdx = topicIndex ? parseInt(topicIndex) : 0;
   const topicKey = `${eId}-${mIdx}-${tIdx}`;

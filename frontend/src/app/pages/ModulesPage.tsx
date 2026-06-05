@@ -40,13 +40,17 @@ export default function ModulesPage() {
   const loading = courseLoading || progressLoading;
 
   // Determine module status from progress data
-  const getModuleStatus = (moduleId: number): 'completed' | 'in_progress' | 'not_started' => {
-    const progress = moduleProgress.find((p) => p.module?.id === moduleId || (p as any).module === moduleId);
+  const getModuleStatus = (moduleId: string | number): 'completed' | 'in_progress' | 'not_started' => {
+    const progress = moduleProgress.find(
+      (p) => String(p.module?.id) === String(moduleId) || String((p as any).module) === String(moduleId)
+    );
     return progress?.status || 'not_started';
   };
 
-  const getModuleProgressPercent = (moduleId: number): number => {
-    const progress = moduleProgress.find((p) => p.module?.id === moduleId || (p as any).module === moduleId);
+  const getModuleProgressPercent = (moduleId: string | number): number => {
+    const progress = moduleProgress.find(
+      (p) => String(p.module?.id) === String(moduleId) || String((p as any).module) === String(moduleId)
+    );
     return progress?.progress_percentage || 0;
   };
 
@@ -108,7 +112,7 @@ export default function ModulesPage() {
                     title="Select active course"
                     value={selectedEnrollment?.id || ''}
                     onChange={(e) => {
-                      const enrollment = enrollments.find((en) => en.id === Number(e.target.value));
+                      const enrollment = enrollments.find((en) => String(en.id) === String(e.target.value));
                       if (enrollment) setSelectedEnrollment(enrollment);
                     }}
                   >

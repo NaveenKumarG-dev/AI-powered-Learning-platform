@@ -33,7 +33,7 @@ export const fetchModuleProgress = createAsyncThunk(
 
 export const updateModuleProgress = createAsyncThunk(
   'progress/updateModuleProgress',
-  async ({ id, data }: { id: number; data: Partial<ModuleProgress> }, { rejectWithValue }) => {
+  async ({ id, data }: { id: string | number; data: Partial<ModuleProgress> }, { rejectWithValue }) => {
     try {
       const progress = await progressAPI.updateModuleProgress(id, data);
       return progress;

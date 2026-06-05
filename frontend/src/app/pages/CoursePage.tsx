@@ -20,7 +20,7 @@ import { CourseStructureDialog } from '../components/CourseStructureDialog';
 export default function CoursePage() {
   const navigate = useNavigate();
   const { enrollmentId } = useParams();
-  const eId = enrollmentId ? parseInt(enrollmentId) : null;
+  const eId = enrollmentId || null;
   const { syllabus, courseName, topicCompletion, quizResults } = useAppSelector(
     (state) => state.syllabus
   );
