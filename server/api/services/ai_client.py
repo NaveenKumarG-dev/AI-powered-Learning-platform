@@ -38,6 +38,16 @@ logger = logging.getLogger(__name__)
 # Internal helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _sanitize_aws_env() -> None:
+    import os
+    aws_access_key = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_session_token = os.environ.get('AWS_SESSION_TOKEN')
+    if aws_access_key and aws_session_token:
+        if aws_access_key.startswith('AKIA') or os.environ.get('VERCEL') == '1':
+            logger.info("AI Client [BEDROCK] Sanitizing environment: removing AWS_SESSION_TOKEN to prevent mismatch")
+            del os.environ['AWS_SESSION_TOKEN']
+
+
 def _use_bedrock_text() -> bool:
     return getattr(settings, 'USE_BEDROCK_TEXT', False)
 
@@ -48,6 +58,7 @@ def _use_bedrock_image() -> bool:
 
 def _bedrock_generate_image(prompt_text: str, output_path: Optional[str] = None) -> Optional[Image.Image]:
     """Generate an image using Amazon Nova Canvas via Bedrock Runtime."""
+    _sanitize_aws_env()
     try:
         import boto3
     except Exception as exc:
@@ -284,6 +295,7 @@ def get_langchain_llm(temperature: float = 0.7, json_mode: bool = False, model_o
         A LangChain BaseChatModel instance.
     """
     if _use_bedrock_text():
+        _sanitize_aws_env()
         try:
             from langchain_aws import ChatBedrockConverse
         except ImportError as exc:
