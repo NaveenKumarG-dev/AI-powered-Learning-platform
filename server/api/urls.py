@@ -64,7 +64,7 @@ urlpatterns = [
     # Assessment & Personalized Learning
     path('assessment/initial/', InitialAssessmentView.as_view(), name='assessment-initial'),
     path('assessment/evaluate/', EvaluateAssessmentView.as_view(), name='assessment-evaluate'),
-    path('assessment/syllabus/<int:enrollment_id>/', GetSyllabusView.as_view(), name='assessment-syllabus'),
+    path('assessment/syllabus/<str:enrollment_id>/', GetSyllabusView.as_view(), name='assessment-syllabus'),
     path('assessment/topic/content/', GenerateTopicContentView.as_view(), name='topic-content'),
     path('assessment/topic/dynamic-script/', GenerateDynamicScriptView.as_view(), name='topic-dynamic-script'),
     path('assessment/topic/quiz/', GenerateTopicQuizView.as_view(), name='topic-quiz'),
@@ -74,7 +74,7 @@ urlpatterns = [
 
     # Coding Lab
     path('coding/problems/generate/', GenerateCodingProblemView.as_view(), name='coding-problem-generate'),
-    path('coding/problems/<int:problem_id>/', CodingProblemDetailView.as_view(), name='coding-problem-detail'),
+    path('coding/problems/<str:problem_id>/', CodingProblemDetailView.as_view(), name='coding-problem-detail'),
     path('coding/submissions/', CreateCodeSubmissionView.as_view(), name='coding-submission-create'),
     path('coding/tasks/<uuid:task_id>/', CodeExecutionTaskStatusView.as_view(), name='coding-task-status'),
     path('coding/submissions/<uuid:submission_id>/result/', CodeSubmissionResultView.as_view(), name='coding-submission-result'),

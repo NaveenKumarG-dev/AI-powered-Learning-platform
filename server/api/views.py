@@ -360,7 +360,7 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
             activity_type='course_started',
             title=f'Enrolled in {enrollment.course.title}',
             description=f'Enrolled in course: {enrollment.course.title}',
-            metadata={'course_id': enrollment.course.id}
+            metadata={'course_id': str(enrollment.course.id)}
         )
     
     @action(detail=True, methods=['get'])
@@ -453,7 +453,7 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
                 activity_type='course_started',
                 title=f'Mind Map generated for {course_title}',
                 description=f'Mind map generated for {course_title} at {user_level} level.',
-                metadata={'course_id': enrollment.course.id}
+                metadata={'course_id': str(enrollment.course.id)}
             )
             
             return Response(mindmap_data)
@@ -562,7 +562,7 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
             title=f'Completed {quiz_attempt.quiz_type} quiz',
             description=f'Completed {quiz_attempt.quiz_type} quiz with score {score:.1f}%',
             metadata={
-                'course_id': quiz_attempt.enrollment.course.id if quiz_attempt.enrollment else None,
+                'course_id': str(quiz_attempt.enrollment.course.id) if quiz_attempt.enrollment else None,
                 'score': score
             }
         )
@@ -731,7 +731,7 @@ class LearningRoadmapViewSet(viewsets.ModelViewSet):
             activity_type='course_started',
             title=f'Roadmap generated for {enrollment.course.title}',
             description=f'Learning roadmap generated for {enrollment.course.title}',
-            metadata={'course_id': enrollment.course.id}
+            metadata={'course_id': str(enrollment.course.id)}
         )
         
         serializer = LearningRoadmapSerializer(roadmap)
@@ -1727,7 +1727,7 @@ class EvaluateAssessmentView(APIView):
                 title=f'Started {course.title}',
                 description=f'Completed pre-knowledge assessment for {course.title}',
                 metadata={
-                    'course_id': course.id,
+                    'course_id': str(course.id),
                     'knowledge_level': assessment_result.knowledge_level,
                     'knowledge_percentage': assessment_result.knowledge_percentage,
                     'study_method': study_method
@@ -2678,7 +2678,7 @@ class GenerateTopicMindMapView(APIView):
                 activity_type='course_started',
                 title=f'Mind Map generated for {topic_name}',
                 description=f'Mind map generated for topic: {topic_name}',
-                metadata={'lesson_id': lesson.id}
+                metadata={'lesson_id': str(lesson.id)}
             )
             
             return Response(mindmap_data, status=status.HTTP_200_OK)
@@ -2936,7 +2936,7 @@ class EvaluateTopicQuizView(APIView):
                 activity_type='quiz_completed',
                 title=f'Completed quiz for {module.title}',
                 description=f'Completed quiz for {module.title}',
-                metadata={'course_id': enrollment.course.id, 'module_id': module.id}
+                metadata={'course_id': str(enrollment.course.id), 'module_id': str(module.id)}
             )
             
             response_data = {

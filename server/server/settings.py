@@ -249,3 +249,28 @@ OLLAMA_TIMEOUT = int(os.environ.get('OLLAMA_TIMEOUT', '600'))  # seconds
 BEDROCK_LLM_MODEL = os.environ.get('BEDROCK_LLM_MODEL', 'amazon.nova-lite-v1:0')
 BEDROCK_IMAGE_MODEL = os.environ.get('BEDROCK_IMAGE_MODEL', 'amazon.nova-canvas-v1:0')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+
+
+# Monkeypatch django_mongodb_backend's convert_jsonfield_value to handle ObjectId
+try:
+    from django_mongodb_backend.operations import DatabaseOperations
+    import json
+    from bson import ObjectId
+
+    original_convert_jsonfield_value = DatabaseOperations.convert_jsonfield_value
+
+    def custom_convert_jsonfield_value(self, value, expression, connection):
+        class MongoJSONEncoder(json.JSONEncoder):
+            def default(self, o):
+                if isinstance(o, ObjectId):
+                    return str(o)
+                try:
+                    return super().default(o)
+                except TypeError:
+                    return str(o)
+        
+        return json.dumps(value, cls=MongoJSONEncoder)
+
+    DatabaseOperations.convert_jsonfield_value = custom_convert_jsonfield_value
+except ImportError:
+    pass

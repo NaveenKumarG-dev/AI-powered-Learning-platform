@@ -20,12 +20,12 @@ interface TopicKey {
   topicIndex: number;
 }
 
-function topicId(enrollmentId: number | null, moduleIndex: number, topicIndex: number): string {
+function topicId(enrollmentId: string | number | null, moduleIndex: number, topicIndex: number): string {
   return `${enrollmentId}-${moduleIndex}-${topicIndex}`;
 }
 
 interface GeneratedContent {
-  lessonId: number;
+  lessonId: string | number;
   content: string;
   generatedAt: string;
 }
@@ -36,7 +36,7 @@ interface GeneratedQuiz {
 }
 
 interface GeneratedDynamicScript {
-  lessonId: number;
+  lessonId: string | number;
   schemaVersion: string;
   title: string;
   overview: string;
@@ -69,11 +69,11 @@ export type ActiveResourceViewType = 'text' | 'video' | 'audio' | 'notes' | 'cre
 
 export interface ActiveResourceView {
   type: ActiveResourceViewType;
-  resourceId?: number;
+  resourceId?: string | number;
 }
 
 export interface SyllabusState {
-  enrollmentId: number | null;
+  enrollmentId: string | number | null;
   courseName: string;
   syllabus: Syllabus | null;
   generatedByModel: string;
@@ -144,7 +144,7 @@ const initialState: SyllabusState = {
 
 export const fetchSyllabus = createAsyncThunk(
   'syllabus/fetchSyllabus',
-  async (enrollmentId: number, { rejectWithValue }) => {
+  async (enrollmentId: string | number, { rejectWithValue }) => {
     try {
       const response = await assessmentAPI.getSyllabus(enrollmentId);
       return response;
@@ -158,7 +158,7 @@ export const fetchSyllabus = createAsyncThunk(
 
 export const generateCourseMindMap = createAsyncThunk(
   'syllabus/generateCourseMindMap',
-  async (enrollmentId: number, { rejectWithValue }) => {
+  async (enrollmentId: string | number, { rejectWithValue }) => {
     try {
       const response = await enrollmentAPI.generateMindMap(enrollmentId);
       return response;
@@ -174,7 +174,7 @@ export const generateTopicMindMap = createAsyncThunk(
   'syllabus/generateTopicMindMap',
   async (
     data: {
-      lessonId: number;
+      lessonId: string | number;
       topicName: string;
       moduleIndex: number;
       topicIndex: number;
@@ -203,8 +203,8 @@ export const generateTopicContent = createAsyncThunk(
   'syllabus/generateTopicContent',
   async (
     data: {
-      enrollmentId: number;
-      moduleId: number;
+      enrollmentId: string | number;
+      moduleId: string | number;
       topicName: string;
       moduleIndex: number;
       topicIndex: number;
@@ -237,7 +237,7 @@ export const generateTopicQuiz = createAsyncThunk(
   'syllabus/generateTopicQuiz',
   async (
     data: {
-      lessonId: number;
+      lessonId: string | number;
       topicName: string;
       moduleIndex: number;
       topicIndex: number;
@@ -266,8 +266,8 @@ export const generateDynamicScript = createAsyncThunk(
   'syllabus/generateDynamicScript',
   async (
     data: {
-      enrollmentId: number;
-      moduleId: number;
+      enrollmentId: string | number;
+      moduleId: string | number;
       topicName: string;
       moduleIndex: number;
       topicIndex: number;
@@ -299,10 +299,10 @@ export const evaluateTopicQuiz = createAsyncThunk(
   'syllabus/evaluateTopicQuiz',
   async (
     data: {
-      enrollmentId: number;
-      moduleId: number;
-      lessonId?: number;
-      questionIds: number[];
+      enrollmentId: string | number;
+      moduleId: string | number;
+      lessonId?: string | number;
+      questionIds: Array<string | number>;
       answers: string[];
       moduleIndex: number;
       topicIndex: number;
@@ -314,7 +314,7 @@ export const evaluateTopicQuiz = createAsyncThunk(
         enrollment_id: data.enrollmentId,
         module_id: data.moduleId,
         lesson_id: data.lessonId,
-        question_ids: data.questionIds,
+        question_ids: data.questionIds as number[], // Cast to satisfy API interface
         answers: data.answers,
       });
       return {
@@ -335,7 +335,7 @@ export const generateVideo = createAsyncThunk(
   async (
     data: {
       topicName: string;
-      lessonId?: number;
+      lessonId?: string | number;
       moduleIndex: number;
       topicIndex: number;
     },
@@ -345,7 +345,7 @@ export const generateVideo = createAsyncThunk(
       console.log('🎥 generateVideo thunk called with:', data);
       const response = await videoAPI.generate({
         topic: data.topicName,
-        lesson_id: data.lessonId,
+        lesson_id: data.lessonId as number, // Cast to satisfy API interface
       });
       console.log('✅ Video API response:', response);
       return {
@@ -392,7 +392,7 @@ export const pollVideoStatus = createAsyncThunk(
 
 export const fetchResources = createAsyncThunk(
   'syllabus/fetchResources',
-  async (lessonId: number, { rejectWithValue }) => {
+  async (lessonId: string | number, { rejectWithValue }) => {
     try {
       const resources = await resourceAPI.listByLesson(lessonId);
       return { lessonId, resources };
@@ -409,8 +409,8 @@ export const generateRemediationContent = createAsyncThunk(
   'syllabus/generateRemediationContent',
   async (
     data: {
-      enrollmentId: number;
-      lessonId: number;
+      enrollmentId: string | number;
+      lessonId: string | number;
       topicName: string;
       weakAreas: string[];
       moduleIndex: number;
@@ -442,7 +442,7 @@ export const createNote = createAsyncThunk(
   'syllabus/createNote',
   async (
     data: {
-      lessonId: number;
+      lessonId: string | number;
       title: string;
       content: string;
       moduleIndex: number;
@@ -472,7 +472,7 @@ export const createNote = createAsyncThunk(
 
 export const fetchLessonProgress = createAsyncThunk(
   'syllabus/fetchLessonProgress',
-  async (enrollmentId: number, { rejectWithValue }) => {
+  async (enrollmentId: string | number, { rejectWithValue }) => {
     try {
       const progress = await progressAPI.getLessonProgressByEnrollment(enrollmentId);
       return { enrollmentId, progress };
@@ -488,8 +488,8 @@ export const saveLessonCompletion = createAsyncThunk(
   'syllabus/saveLessonCompletion',
   async (
     data: {
-      enrollmentId: number;
-      lessonId: number;
+      enrollmentId: string | number;
+      lessonId: string | number;
       isCompleted: boolean;
       moduleIndex: number;
       topicIndex: number;
@@ -518,7 +518,7 @@ export const saveLessonCompletion = createAsyncThunk(
 
 export const fetchQuizAttempts = createAsyncThunk(
   'syllabus/fetchQuizAttempts',
-  async (enrollmentId: number, { rejectWithValue }) => {
+  async (enrollmentId: string | number, { rejectWithValue }) => {
     try {
       const attempts = await assessmentAPI.getQuizAttempts(enrollmentId);
       return { enrollmentId, attempts };
@@ -548,7 +548,7 @@ const syllabusSlice = createSlice({
     setSyllabusFromEvaluation: (
       state,
       action: PayloadAction<{
-        enrollmentId: number;
+        enrollmentId: string | number;
         courseName: string;
         syllabus: Syllabus;
       }>
