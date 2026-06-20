@@ -19,6 +19,7 @@ import CodingAssessmentPage from './pages/CodingAssessmentPage';
 import PodcastPage from './pages/PodcastPage';
 import CourseDetailsPage from './pages/CourseDetailsPage';
 import { CourseLayout } from './components/CourseLayout';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 
 // Note: Protected routes are handled by checking localStorage in each component
 // Alternatively, use a layout wrapper with auth checking
@@ -39,6 +40,10 @@ export const router = createBrowserRouter([
   {
     path: '/forgot-password',
     Component: ForgotPasswordPage,
+  },
+  {
+    path: '/admin-dashboard',
+    Component: AdminDashboardPage,
   },
   {
     path: '/dashboard',

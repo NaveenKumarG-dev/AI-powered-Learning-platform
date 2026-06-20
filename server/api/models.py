@@ -1023,3 +1023,78 @@ class ChatHistory(models.Model):
 
     def __str__(self):
         return f'{self.enrollment.user.email} - {self.role} - {self.created_at}'
+
+
+# ===========================================================================
+# 20. TokenUsage  (Admin Dashboard – AI cost tracking)
+# ===========================================================================
+
+class TokenUsage(models.Model):
+    """
+    Records the number of tokens consumed by each AI-powered feature call.
+    Used by the Admin Dashboard to show total usage and per-user breakdowns
+    filtered by activity type.
+    """
+
+    class ActivityType(models.TextChoices):
+        QUIZ              = 'quiz',              'Quiz Generation'
+        VIDEO_GENERATION  = 'video_generation',  'Video Generation'
+        MINDMAP           = 'mindmap',           'Mind Map Generation'
+        CHAT              = 'chat',              'Chat / Q&A'
+        CODING            = 'coding',            'Coding Problem'
+        NOTES             = 'notes',             'Notes Generation'
+        PODCAST           = 'podcast',           'Podcast Generation'
+        ASSESSMENT        = 'assessment',        'Assessment'
+        COURSE_PLANNING   = 'course_planning',   'Course Planning'
+        REMEDIATION       = 'remediation',       'Remediation Content'
+        DYNAMIC_SCRIPT    = 'dynamic_script',    'Dynamic Script'
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='token_usages',
+        null=True,
+        blank=True,
+        help_text='User who triggered the AI call (null for system calls)',
+    )
+    activity_type = models.CharField(
+        max_length=25,
+        choices=ActivityType.choices,
+        db_index=True,
+    )
+    input_tokens = models.PositiveIntegerField(
+        default=0,
+        help_text='Number of prompt/input tokens consumed',
+    )
+    output_tokens = models.PositiveIntegerField(
+        default=0,
+        help_text='Number of completion/output tokens generated',
+    )
+    model_name = models.CharField(
+        max_length=100,
+        blank=True,
+        default='',
+        help_text='LLM model name (e.g. claude-3-5-sonnet, gpt-4o)',
+    )
+    metadata = models.JSONField(
+        null=True,
+        blank=True,
+        help_text='Extra context e.g. {"course_id": 1, "enrollment_id": 2}',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'token_usage'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'activity_type']),
+            models.Index(fields=['activity_type', '-created_at']),
+        ]
+
+    @property
+    def total_tokens(self) -> int:
+        return self.input_tokens + self.output_tokens
+
+    def __str__(self):
+        user_label = self.user.email if self.user else 'system'
+        return f'{user_label} – {self.activity_type} – {self.total_tokens} tokens'

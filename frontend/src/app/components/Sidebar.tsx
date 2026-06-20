@@ -1,4 +1,4 @@
-import { Home, BookOpen, TrendingUp, Layers, Settings, LogOut, User, Star } from 'lucide-react';
+import { Home, BookOpen, TrendingUp, Layers, Settings, LogOut, User, Star, Shield } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -15,6 +15,9 @@ export function Sidebar() {
     { icon: Layers, label: 'Modules', path: '/modules' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
+
+  // Check if user is staff/admin – backend returns is_staff on the user object
+  const isStaff = (user as any)?.is_staff === true;
 
   const onLogout = async () => {
     await handleLogout();
@@ -79,6 +82,26 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Admin section – only visible to staff users */}
+        {isStaff && (
+          <>
+            <h2 className="px-3 text-[11px] uppercase tracking-[0.14em] text-neutral-500 font-semibold mt-4">
+              Admin
+            </h2>
+            <Link
+              to="/admin-dashboard"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
+                location.pathname === '/admin-dashboard'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              <span className="text-sm font-medium">Admin Dashboard</span>
+            </Link>
+          </>
+        )}
       </nav>
 
       <div className="p-4 border-t border-neutral-200/80">

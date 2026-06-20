@@ -10,7 +10,7 @@ from .views import (
     CourseViewSet, ModuleViewSet, LessonViewSet, ResourceViewSet,
     EnrollmentViewSet, QuestionViewSet, QuizAttemptViewSet, QuizAnswerViewSet,
     ModuleProgressViewSet, LessonProgressViewSet, LearningRoadmapViewSet, AchievementViewSet,
-    UserAchievementViewSet, ActivityLogViewSet, DashboardView,
+    UserAchievementViewSet, ActivityLogViewSet, DashboardView, AdminStatsView,
     InitialAssessmentView, EvaluateAssessmentView, GetSyllabusView,
     GenerateTopicContentView, GenerateTopicQuizView, EvaluateTopicQuizView,
     GenerateTopicMindMapView, GenerateRemediationContentView, GenerateDynamicScriptView,
@@ -52,6 +52,9 @@ urlpatterns = [
     
     # Dashboard
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    
+    # Admin Dashboard Stats (staff/superuser only)
+    path('admin/stats/', AdminStatsView.as_view(), name='admin-stats'),
     
     # Video Generation
     path('videos/generate/', GenerateVideoView.as_view(), name='video-generate'),

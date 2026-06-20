@@ -76,9 +76,11 @@ class UserSerializer(serializers.ModelSerializer):
             'avatar',
             'bio',
             'date_joined',
+            'is_staff',
             'learning_profile',
         )
-        read_only_fields = ('id', 'email', 'date_joined')
+        read_only_fields = ('id', 'email', 'date_joined', 'is_staff')
+
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

@@ -19,6 +19,7 @@ from .models import (
     QuizAnswer,
     QuizAttempt,
     Resource,
+    TokenUsage,
     User,
     UserAchievement,
     VideoTask,
@@ -171,3 +172,16 @@ class ChatHistoryAdmin(admin.ModelAdmin):
     list_filter = ('role',)
     search_fields = ('enrollment__user__email', 'content', 'topic_name')
     readonly_fields = ('created_at',)
+
+
+@admin.register(TokenUsage)
+class TokenUsageAdmin(admin.ModelAdmin):
+    list_display = ('user', 'activity_type', 'input_tokens', 'output_tokens', 'total_tokens_display', 'model_name', 'created_at')
+    list_filter = ('activity_type', 'model_name')
+    search_fields = ('user__email', 'model_name')
+    readonly_fields = ('created_at',)
+    date_hierarchy = 'created_at'
+
+    @admin.display(description='Total Tokens')
+    def total_tokens_display(self, obj):
+        return obj.input_tokens + obj.output_tokens

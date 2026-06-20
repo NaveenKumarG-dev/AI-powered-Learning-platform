@@ -7,7 +7,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django.conf import settings
-from django.db.models import Q, Avg, Count, Sum
+from django.db.models import Q, Avg, Count, Sum, Max
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
@@ -21,6 +21,7 @@ from .models import (
     LearningRoadmap, Achievement, UserAchievement, ActivityLog,
     PersonalizedSyllabus, CoursePlanningTask,
     CodingProblem, CodingTestCase, CodeSubmission, CodeExecutionTask,
+    TokenUsage, ChatHistory,
 )
 from .serializers import (
     VideoTaskCreateSerializer, VideoTaskStatusSerializer,
@@ -48,6 +49,37 @@ from .services.dynamic_script_service import get_dynamic_script_service
 from .services.sample_code_service import get_sample_code_service
 
 User = get_user_model()
+
+
+# ---------------------------------------------------------------------------
+# Token Usage Helper
+# ---------------------------------------------------------------------------
+
+def record_token_usage(
+    user,
+    activity_type: str,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+    model_name: str = '',
+    metadata: dict = None,
+) -> None:
+    """
+    Safely record token usage for any AI-powered feature.
+    Call this from any view that makes an LLM call.
+    Silently swallows errors so it never breaks the main request flow.
+    """
+    try:
+        TokenUsage.objects.create(
+            user=user,
+            activity_type=activity_type,
+            input_tokens=max(0, int(input_tokens)),
+            output_tokens=max(0, int(output_tokens)),
+            model_name=model_name or '',
+            metadata=metadata,
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.warning(f'record_token_usage failed silently: {exc}')
+
 
 
 # ============================================================================
@@ -820,8 +852,225 @@ class DashboardView(APIView):
 
 
 # ============================================================================
-# VIDEO GENERATION VIEWS (existing)
+# ADMIN STATS VIEW
 # ============================================================================
+
+class AdminStatsView(APIView):
+    """
+    GET /api/admin/stats/
+    Returns platform-wide and per-user token usage + activity stats.
+    Only accessible to staff / superuser accounts.
+
+    Query params:
+      ?activity_type=quiz|video_generation|mindmap|chat|coding|notes|podcast|assessment|course_planning
+      ?user_id=<int>          – filter to a single user
+      ?date_from=YYYY-MM-DD   – start date (inclusive)
+      ?date_to=YYYY-MM-DD     – end date (inclusive)
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        from django.db.models.functions import TruncDate
+        from datetime import datetime, timedelta
+
+        # ── Query param parsing ────────────────────────────────────────────
+        activity_type = request.query_params.get('activity_type', '').strip()
+        user_id       = request.query_params.get('user_id', '').strip()
+        date_from     = request.query_params.get('date_from', '').strip()
+        date_to       = request.query_params.get('date_to', '').strip()
+
+        # ── Base querysets ─────────────────────────────────────────────────
+        token_qs     = TokenUsage.objects.all()
+        activity_qs  = ActivityLog.objects.all()
+
+        # Apply filters
+        if activity_type:
+            token_qs    = token_qs.filter(activity_type=activity_type)
+            activity_qs = activity_qs.filter(activity_type=activity_type)
+
+        if user_id:
+            try:
+                uid = int(user_id)
+                token_qs    = token_qs.filter(user_id=uid)
+                activity_qs = activity_qs.filter(user_id=uid)
+            except ValueError:
+                pass
+
+        if date_from:
+            try:
+                dt = datetime.strptime(date_from, '%Y-%m-%d')
+                token_qs    = token_qs.filter(created_at__date__gte=dt.date())
+                activity_qs = activity_qs.filter(created_at__date__gte=dt.date())
+            except ValueError:
+                pass
+
+        if date_to:
+            try:
+                dt = datetime.strptime(date_to, '%Y-%m-%d')
+                token_qs    = token_qs.filter(created_at__date__lte=dt.date())
+                activity_qs = activity_qs.filter(created_at__date__lte=dt.date())
+            except ValueError:
+                pass
+
+        # ── Platform-wide totals ───────────────────────────────────────────
+        token_totals = token_qs.aggregate(
+            total_input=Sum('input_tokens'),
+            total_output=Sum('output_tokens'),
+            total_records=Count('id'),
+        )
+        total_input   = token_totals['total_input']  or 0
+        total_output  = token_totals['total_output'] or 0
+        total_tokens  = total_input + total_output
+        total_records = token_totals['total_records'] or 0
+
+        # ── Activity breakdown (tokens per type) ───────────────────────────
+        activity_breakdown = list(
+            token_qs
+            .values('activity_type')
+            .annotate(
+                input_tokens=Sum('input_tokens'),
+                output_tokens=Sum('output_tokens'),
+                count=Count('id'),
+            )
+            .order_by('-input_tokens')
+        )
+        for row in activity_breakdown:
+            row['total_tokens'] = (row['input_tokens'] or 0) + (row['output_tokens'] or 0)
+
+        # ── Activity log breakdown (counts by activity_type) ───────────────
+        activity_log_breakdown = list(
+            activity_qs
+            .values('activity_type')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+
+        # ── Daily usage – last 30 days ─────────────────────────────────────
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+        daily_usage = list(
+            token_qs
+            .filter(created_at__gte=thirty_days_ago)
+            .annotate(date=TruncDate('created_at'))
+            .values('date')
+            .annotate(
+                total=Sum('input_tokens') + Sum('output_tokens'),
+                input_tokens=Sum('input_tokens'),
+                output_tokens=Sum('output_tokens'),
+            )
+            .order_by('date')
+        )
+        for row in daily_usage:
+            if hasattr(row['date'], 'isoformat'):
+                row['date'] = row['date'].isoformat()
+
+        # ── Per-user stats ─────────────────────────────────────────────────
+        per_user_tokens = list(
+            token_qs
+            .values('user_id', 'user__email', 'user__full_name')
+            .annotate(
+                input_tokens=Sum('input_tokens'),
+                output_tokens=Sum('output_tokens'),
+                api_calls=Count('id'),
+            )
+            .order_by('-input_tokens')
+        )
+        for row in per_user_tokens:
+            row['total_tokens'] = (row['input_tokens'] or 0) + (row['output_tokens'] or 0)
+
+        # Enrich with enrollment count + last active
+        user_ids = [r['user_id'] for r in per_user_tokens if r['user_id']]
+        enrollment_counts = {
+            e['user_id']: e['count']
+            for e in Enrollment.objects.filter(user_id__in=user_ids)
+                                       .values('user_id')
+                                       .annotate(count=Count('id'))
+        }
+        last_active_map = {
+            a['user_id']: a['last_active']
+            for a in ActivityLog.objects.filter(user_id__in=user_ids)
+                                        .values('user_id')
+                                        .annotate(last_active=Max('created_at'))
+        }
+        for row in per_user_tokens:
+            uid = row['user_id']
+            row['enrollment_count'] = enrollment_counts.get(uid, 0)
+            last = last_active_map.get(uid)
+            row['last_active'] = last.isoformat() if last else None
+
+        # ── All users (even those with 0 token usage) ──────────────────────
+        all_users_qs = User.objects.all().order_by('email')
+        if user_id:
+            try:
+                all_users_qs = all_users_qs.filter(id=int(user_id))
+            except ValueError:
+                pass
+
+        all_users = []
+        per_user_map = {r['user_id']: r for r in per_user_tokens}
+        for u in all_users_qs:
+            base = per_user_map.get(u.id, {
+                'input_tokens': 0,
+                'output_tokens': 0,
+                'total_tokens': 0,
+                'api_calls': 0,
+            })
+            all_users.append({
+                'user_id':          u.id,
+                'email':            u.email,
+                'full_name':        u.full_name,
+                'is_staff':         u.is_staff,
+                'date_joined':      u.date_joined.isoformat() if u.date_joined else None,
+                'input_tokens':     base.get('input_tokens', 0) or 0,
+                'output_tokens':    base.get('output_tokens', 0) or 0,
+                'total_tokens':     base.get('total_tokens', 0) or 0,
+                'api_calls':        base.get('api_calls', 0) or 0,
+                'enrollment_count': enrollment_counts.get(u.id, 0),
+                'last_active':      last_active_map.get(u.id, u.last_login),
+            })
+            # serialise datetime if needed
+            if isinstance(all_users[-1]['last_active'], timezone.datetime.__class__) or hasattr(all_users[-1]['last_active'], 'isoformat'):
+                all_users[-1]['last_active'] = all_users[-1]['last_active'].isoformat() if all_users[-1]['last_active'] else None
+
+        # ── Platform summary stats ─────────────────────────────────────────
+        total_users       = User.objects.count()
+        total_enrollments = Enrollment.objects.count()
+        active_today      = ActivityLog.objects.filter(
+            created_at__date=timezone.now().date()
+        ).values('user').distinct().count()
+
+        # Recent token usage records
+        recent_usage = list(
+            token_qs.select_related('user')
+                    .order_by('-created_at')[:50]
+                    .values(
+                        'id', 'user_id', 'user__email', 'user__full_name',
+                        'activity_type', 'input_tokens', 'output_tokens',
+                        'model_name', 'created_at',
+                    )
+        )
+        for row in recent_usage:
+            row['total_tokens'] = (row['input_tokens'] or 0) + (row['output_tokens'] or 0)
+            if row['created_at']:
+                row['created_at'] = row['created_at'].isoformat()
+
+        return Response({
+            'summary': {
+                'total_tokens':      total_tokens,
+                'total_input':       total_input,
+                'total_output':      total_output,
+                'total_api_calls':   total_records,
+                'total_users':       total_users,
+                'total_enrollments': total_enrollments,
+                'active_today':      active_today,
+            },
+            'activity_breakdown':      activity_breakdown,
+            'activity_log_breakdown':  activity_log_breakdown,
+            'daily_usage':             daily_usage,
+            'users':                   all_users,
+            'recent_usage':            recent_usage,
+        })
+
+
 
 
 class GenerateVideoView(APIView):
